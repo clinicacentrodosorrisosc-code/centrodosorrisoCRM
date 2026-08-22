@@ -785,3 +785,53 @@ export async function moveLeadHandler(
 
   return finalLead;
 }
+
+export async function deleteLeadHandler(
+  supabase: SB,
+  ctx: HandlerCtx,
+  leadId: string,
+): Promise<{ id: string; deleted: true }> {
+  const { data: lead, error: fetchErr } = await supabase
+    .from("crm_leads")
+    .select("id, organization_id, title, contact_id, pipeline_id, stage_id")
+    .eq("id", leadId)
+    .eq("organization_id", ctx.organization_id)
+    .maybeSingle();
+
+  if (fetchErr) {
+    throw new ApiError(500, "internal_error", undefined, ctx.requestId, fetchErr.message);
+  }
+  if (!lead) {
+    throw new ApiError(404, "not_found", undefined, ctx.requestId, "Lead não encontrado.");
+  }
+
+  const { error: delErr } = await supabase
+    .from("crm_leads")
+    .delete()
+    .eq("id", leadId)
+    .eq("organization_id", ctx.organization_id);
+
+  if (delErr) {
+    throw new ApiError(500, "internal_error", undefined, ctx.requestId, delErr.message);
+  }
+
+  const a = actorAuditPayload(ctx.actor);
+  await audit({
+    action: "lead.deleted",
+    actorUserId: a.actorUserId,
+    organizationId: lead.organization_id,
+    resourceType: "crm_lead",
+    resourceId: leadId,
+    requestId: ctx.requestId,
+    metadata: {
+      ...a.metadataActor,
+      title: lead.title,
+      contact_id: lead.contact_id,
+      pipeline_id: lead.pipeline_id,
+      stage_id: lead.stage_id,
+    },
+  });
+
+  return { id: leadId, deleted: true };
+}
+

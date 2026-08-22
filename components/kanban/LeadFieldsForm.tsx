@@ -17,6 +17,7 @@ import { parseReaisToCents } from "@/lib/money";
 import { OrcamentoCard } from "./OrcamentoCard";
 import { OrcamentoDialog } from "./OrcamentoDialog";
 import { LeadTasksSection } from "./LeadTasksSection";
+import { DeleteLeadDialog } from "./DeleteLeadDialog";
 import {
   CalendarBlank,
   Clock,
@@ -24,6 +25,7 @@ import {
   XCircle,
   Lock,
   ArrowsClockwise,
+  Trash,
 } from "@/lib/ui/icons";
 
 export const FONTES_SUGERIDAS = [
@@ -91,6 +93,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
   const { data: boardData } = useBoard(pipelineId);
 
   const [orcamentoOpen, setOrcamentoOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
   const orcamento = customFields.orcamento as OrcamentoLead | undefined;
@@ -538,15 +541,27 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
           <Textarea id="description" rows={2} className="text-xs" {...form.register("description")} />
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          {onCancel && (
-            <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={edit.isPending} className="h-8 text-xs">
-              Cancelar
-            </Button>
-          )}
-          <Button type="submit" size="sm" disabled={edit.isPending} className="h-8 text-xs">
-            {edit.isPending ? "Salvando…" : "Salvar Alterações"}
+        <div className="flex items-center justify-between pt-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setDeleteOpen(true)}
+            className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive gap-1"
+          >
+            <Trash size={14} /> Excluir lead
           </Button>
+
+          <div className="flex items-center gap-2">
+            {onCancel && (
+              <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={edit.isPending} className="h-8 text-xs">
+                Cancelar
+              </Button>
+            )}
+            <Button type="submit" size="sm" disabled={edit.isPending} className="h-8 text-xs">
+              {edit.isPending ? "Salvando…" : "Salvar Alterações"}
+            </Button>
+          </div>
         </div>
       </form>
 
@@ -557,6 +572,16 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
         lead={lead}
         pipelineId={pipelineId}
       />
+
+      <DeleteLeadDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        leadId={lead.id}
+        leadTitle={lead.title}
+        pipelineId={pipelineId}
+        onSuccess={onCancel}
+      />
     </>
   );
 }
+

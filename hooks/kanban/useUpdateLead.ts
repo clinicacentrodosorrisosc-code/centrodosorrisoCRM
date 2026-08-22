@@ -63,6 +63,24 @@ export function useEditLead(pipelineId: string) {
     onSettled: (_data, _err, { leadId }) => {
       liberarEcoLocal(leadId);
       qc.invalidateQueries({ queryKey: ["board", pipelineId] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
+
+export function useDeleteLead(pipelineId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (leadId: string) => {
+      marcarEcoLocal(leadId);
+      return apiClient.delete<{ data: { id: string; deleted: true } }>(`/api/v1/leads/${leadId}`);
+    },
+    onError: showApiError,
+    onSettled: (_data, _err, leadId) => {
+      liberarEcoLocal(leadId);
+      qc.invalidateQueries({ queryKey: ["board", pipelineId] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+

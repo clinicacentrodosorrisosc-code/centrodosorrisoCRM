@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
@@ -20,6 +20,8 @@ import { updateLeadSchema, type UpdateLeadInput } from "@/lib/schemas/leads";
 import { parseReaisToCents } from "@/lib/money";
 import { EcoDoValor } from "./EcoDoValor";
 import { FONTES_SUGERIDAS, PROCEDIMENTOS_SUGERIDOS } from "./LeadFieldsForm";
+import { DeleteLeadDialog } from "./DeleteLeadDialog";
+import { Trash } from "@/lib/ui/icons";
 
 interface FormShape {
   title: string;
@@ -45,6 +47,7 @@ function centsToReais(cents: number | null | undefined): string {
 
 export function EditLeadDialog({ open, onOpenChange, lead, pipelineId }: Props) {
   const edit = useEditLead(pipelineId);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
   const initialProcedimento = String(customFields.procedimento ?? customFields.procedure ?? "");
@@ -215,23 +218,44 @@ export function EditLeadDialog({ open, onOpenChange, lead, pipelineId }: Props) 
             <Textarea id="description" rows={2} className="text-xs" {...form.register("description")} />
           </div>
 
-          <DialogFooter className="pt-2">
+          <DialogFooter className="flex items-center justify-between sm:justify-between pt-2">
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => onOpenChange(false)}
-              disabled={edit.isPending}
-              className="h-8 text-xs"
+              onClick={() => setDeleteOpen(true)}
+              className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive gap-1"
             >
-              Cancelar
+              <Trash size={14} /> Excluir lead
             </Button>
-            <Button type="submit" size="sm" disabled={edit.isPending} className="h-8 text-xs">
-              {edit.isPending ? "Salvando…" : "Salvar"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                disabled={edit.isPending}
+                className="h-8 text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" size="sm" disabled={edit.isPending} className="h-8 text-xs">
+                {edit.isPending ? "Salvando…" : "Salvar"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <DeleteLeadDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        leadId={lead.id}
+        leadTitle={lead.title}
+        pipelineId={pipelineId}
+        onSuccess={() => onOpenChange(false)}
+      />
     </Dialog>
   );
 }
+

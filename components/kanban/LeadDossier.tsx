@@ -14,6 +14,7 @@ import { LeadFieldsForm } from "./LeadFieldsForm";
 import { ScoreSlot } from "./ScoreSlot";
 import { LeadTimeline } from "./LeadTimeline";
 import { OwnerBadge } from "./OwnerBadge";
+import { DeleteLeadDialog } from "./DeleteLeadDialog";
 import { resolveLeadOwner } from "@/lib/kanban/owner";
 import { ChatThread } from "@/components/inbox/ChatThread";
 import { Composer } from "@/components/inbox/Composer";
@@ -26,6 +27,7 @@ import {
   CheckCircle,
   XCircle,
   CalendarBlank,
+  Trash,
 } from "@/lib/ui/icons";
 
 interface Props {
@@ -63,6 +65,7 @@ export function LeadDossier({
   const owner = resolveLeadOwner(lead, ownerNames);
   const score = lead.score ?? null;
   const [activeTab, setActiveTab] = useState<"chat" | "dados" | "timeline">("chat");
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const edit = useEditLead(pipelineId);
   const move = useMoveCard(pipelineId);
@@ -188,6 +191,17 @@ export function LeadDossier({
                   <ArrowSquareOut size={13} className="text-text-muted" />
                 </Link>
               )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteOpen(true)}
+                className="h-7 px-2 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive gap-1"
+                title="Excluir este lead"
+              >
+                <Trash size={14} />
+                <span className="hidden sm:inline">Excluir</span>
+              </Button>
             </div>
           </div>
 
@@ -332,6 +346,16 @@ export function LeadDossier({
           </div>
         </div>
       </SheetContent>
+
+      <DeleteLeadDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        leadId={lead.id}
+        leadTitle={lead.title}
+        pipelineId={pipelineId}
+        onSuccess={() => onOpenChange(false)}
+      />
     </Sheet>
   );
 }
+

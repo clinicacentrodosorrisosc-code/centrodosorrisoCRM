@@ -10,7 +10,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { updateLeadSchema, validateRequest } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 
-import { updateLeadHandler } from "../_handler";
+import { deleteLeadHandler, updateLeadHandler } from "../_handler";
 
 export const dynamic = "force-dynamic";
 
@@ -60,3 +60,37 @@ export async function PATCH(
     throw err;
   }
 }
+
+export async function DELETE(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const requestId = randomUUID();
+  const { id: leadId } = await ctx.params;
+
+  const supabase = await createClient();
+  // Exclusão é agent+
+  const authz = await requireRole("agent", { requestId, resource: "crm_leads" });
+  if (!authz.ok) return authz.response;
+  const user = authz.user;
+  const activeOrg = authz.org;
+
+  try {
+    const result = await deleteLeadHandler(
+      supabase,
+      {
+        organization_id: activeOrg.orgId,
+        actor: { type: "user", id: user.id },
+        requestId,
+      },
+      leadId,
+    );
+    return ok(result, { requestId });
+  } catch (err) {
+    if (err instanceof ApiError) {
+      return fail(err.code, err.message, err.status, { requestId });
+    }
+    throw err;
+  }
+}
+
