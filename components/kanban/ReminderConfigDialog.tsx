@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Bell, Trash, Clock, WhatsappLogo, Warning, Plus } from "@/lib/ui/icons";
+import { Bell, Trash, Clock, WhatsappLogo, Warning, Plus, Play } from "@/lib/ui/icons";
+import { apiClient } from "@/lib/api/client";
 import {
   useReminderConfig,
   useSaveReminderConfig,
@@ -211,7 +212,49 @@ function ReminderConfigForm({
     });
   }
 
-  const isBusy = saveConfig.isPending || deleteConfig.isPending;
+  const [isTesting, setIsTesting] = useState(false);
+
+  async function handleTestDisparos() {
+    setIsTesting(true);
+    try {
+      const res = await apiClient.post<{
+        data: {
+          summary: {
+            sent: number;
+            leads_evaluated: number;
+            skipped_already_sent: number;
+            skipped_no_phone: number;
+            errors: number;
+          };
+        };
+      }>(`/api/v1/pipelines/${pipelineId}/reminder/test`, {});
+
+      const s = res.data.summary;
+      if (s.sent > 0) {
+        toast.success(`Sucesso! ${s.sent} lembrete(s) disparado(s) agora pelo WhatsApp.`);
+      } else if (s.leads_evaluated === 0) {
+        toast.info("Nenhum lead com agendamento preenchido foi encontrado neste funil.");
+      } else if (s.skipped_already_sent > 0) {
+        toast.info(
+          `${s.leads_evaluated} lead(s) avaliado(s). Os lembretes já haviam sido enviados anteriormente.`,
+        );
+      } else if (s.skipped_no_phone > 0) {
+        toast.warning(
+          `${s.leads_evaluated} lead(s) avaliado(s), mas o telefone do contato está vazio/inválido.`,
+        );
+      } else {
+        toast.info(
+          `${s.leads_evaluated} lead(s) avaliado(s). Nenhum lead está na janela exata de antecedência agora.`,
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao testar disparos");
+    } finally {
+      setIsTesting(false);
+    }
+  }
+
+  const isBusy = saveConfig.isPending || deleteConfig.isPending || isTesting;
   const hasConfig = !!existingConfig;
 
   return (
@@ -442,11 +485,11 @@ function ReminderConfigForm({
           </div>
         )}
 
-        {/* Confirmação de exclusão */}
+        {/* Zona de perigo: confirmação de exclusão */}
         {confirmDelete && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 flex flex-col gap-3">
-            <p className="text-sm font-medium text-destructive">
-              Tem certeza que deseja remover todos os lembretes deste funil?
+          <div className="p-3.5 rounded-lg border border-destructive/40 bg-destructive/5 space-y-2">
+            <p className="text-xs font-medium text-destructive">
+              Tem certeza de que deseja remover todas as configurações de lembrete deste funil?
             </p>
             <div className="flex gap-2">
               <Button
@@ -455,8 +498,7 @@ function ReminderConfigForm({
                 onClick={handleDelete}
                 disabled={isBusy}
               >
-                <Trash size={13} className="mr-1.5" />
-                Confirmar remoção
+                {deleteConfig.isPending ? "Removendo…" : "Sim, remover lembretes"}
               </Button>
               <Button
                 variant="outline"
@@ -472,7 +514,7 @@ function ReminderConfigForm({
       </div>
 
       <DialogFooter className="flex flex-row items-center justify-between gap-2 pt-2">
-        <div>
+        <div className="flex items-center gap-2">
           {hasConfig && !confirmDelete && (
             <Button
               variant="ghost"
@@ -485,6 +527,19 @@ function ReminderConfigForm({
               Remover lembretes
             </Button>
           )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleTestDisparos}
+            disabled={isBusy || isTesting}
+            className="text-xs h-8 gap-1.5 text-foreground hover:bg-muted"
+            title="Executa uma verificação manual agora"
+          >
+            <Play size={12} weight="fill" className="text-primary" />
+            {isTesting ? "Testando…" : "Testar Disparos Agora"}
+          </Button>
         </div>
         <div className="flex gap-2">
           <Button

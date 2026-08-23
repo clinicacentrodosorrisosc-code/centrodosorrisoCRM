@@ -280,10 +280,15 @@ export async function processAppointmentReminders(
             }
           }
 
-          const rawPhone = contactPhone ? contactPhone.replace(/\D/g, "") : "";
+          let rawPhone = contactPhone ? contactPhone.replace(/\D/g, "") : "";
           if (!rawPhone) {
             summary.skipped_no_phone++;
             continue;
+          }
+
+          // Se o telefone tem 10 ou 11 dígitos (DDD + número no Brasil), prefixa com 55
+          if ((rawPhone.length === 10 || rawPhone.length === 11) && !rawPhone.startsWith("55")) {
+            rawPhone = `55${rawPhone}`;
           }
 
           const agendamentoFormatted = formatAgendamento(dataStr, horaStr);
@@ -320,6 +325,18 @@ export async function processAppointmentReminders(
             }
           }
 
+          // Busca a sessão de canal ativa da organização para o WAHA
+          const { data: channelSession } = await admin
+            .from("channel_sessions")
+            .select("id, waha_session_name, provider, status, phone_number")
+            .eq("organization_id", config.organization_id)
+            .is("archived_at", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const sessionName = channelSession?.waha_session_name || "default";
+
           let sentSuccessfully = false;
           let externalId: string | null = null;
           const messageBody = buildInterpolatedText(metaTemplate?.components, values, schedule.template_name);
@@ -344,7 +361,7 @@ export async function processAppointmentReminders(
             // 2. Fallback WAHA
             try {
               const wahaRes = await sendWAHA({
-                sessionName: "default",
+                sessionName,
                 chatId: `${rawPhone}@c.us`,
                 text: messageBody,
               });
@@ -357,6 +374,7 @@ export async function processAppointmentReminders(
             } catch (wahaErr) {
               logger.error("[appointment-reminders] Fallback WAHA também falhou", {
                 lead_id: lead.id,
+                session_name: sessionName,
                 error: String(wahaErr),
               });
             }
