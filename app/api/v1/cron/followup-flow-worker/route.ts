@@ -65,10 +65,26 @@ async function handle(req: NextRequest): Promise<Response> {
   }
 
   const admin = createAdminClient();
+
+  // 1. Drena event_log para registrar novos gatilhos (ex: lead.stage_changed)
+  try {
+    const { drainEventLog } = await import("@/lib/event-log/drain");
+    const { ensureHandlersRegistered } = await import("@/lib/event-log/register-handlers");
+    ensureHandlersRegistered();
+    await drainEventLog(admin, { limit: 50 });
+  } catch (drainErr) {
+    logger.warn("[followup-flow-worker.cron] drainEventLog threw (prosseguindo)", { error: String(drainErr) });
+  }
+
+  // 2. Executa o tick do motor de follow-up
+  const newlyEnqueuedJobs: FollowupJobRequest[] = [];
   const deps = {
     db: createSupabaseAdminClient(admin),
     clock: () => new Date(),
-    enqueueJob,
+    enqueueJob: async (job: FollowupJobRequest) => {
+      newlyEnqueuedJobs.push(job);
+      await enqueueJob(job);
+    },
   };
 
   let summary;
@@ -79,6 +95,61 @@ async function handle(req: NextRequest): Promise<Response> {
     logger.error("[followup-flow-worker.cron] runFollowupTick threw", { error: detail, requestId });
     return fail("internal_error", detail, 500, { requestId });
   }
+
+  // 3. Se algum job de mensagem/template foi gerado, executa-o imediatamente
+  for (const job of newlyEnqueuedJobs) {
+    if (job.payload && (job.payload as any).purpose === "send_message" && (job.payload as any).template_id) {
+      try {
+        const { createSupabaseTurnBridgeClient, completeTurnForEnrollment } = await import("@/lib/followup/turn-bridge");
+        const { createFollowupTurnHandler } = await import("@/lib/agent-engine/agent/followup-turn");
+        const bridgeClient = createSupabaseTurnBridgeClient(admin);
+
+        const completeFollowupTurn = async (_pool: any, input: any) => {
+          await completeTurnForEnrollment(
+            bridgeClient,
+            input.organizationId,
+            input.enrollmentId,
+            input.nodeId,
+            input.result,
+          );
+        };
+
+        const handler = createFollowupTurnHandler({
+          crmCfg: {} as any,
+          llmCfg: {} as any,
+          log: { info: () => {}, warn: () => {}, error: () => {} } as any,
+          knobs: {} as any,
+          completeFollowupTurn,
+        });
+
+        const fakePool = {
+          query: async () => ({ rowCount: 0, rows: [] }),
+        };
+
+        const jobRow = {
+          id: randomUUID(),
+          organization_id: job.organization_id,
+          contact_id: job.contact_id,
+          kind: "followup_turn" as const,
+          payload: job.payload,
+          status: "running" as const,
+          priority: 0,
+          lease_token: null,
+          leased_until: null,
+          claimed_by: "cron-worker",
+          attempts: 1,
+          max_attempts: 3,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        await handler(jobRow as any, fakePool as any, { workerId: "cron-worker" });
+      } catch (handlerErr) {
+        logger.error("[followup-flow-worker.cron] Erro ao disparar mensagem de template:", { error: String(handlerErr) });
+      }
+    }
+  }
+
 
   // Só audita tick que MEXEU em alguma coisa. Auditar toda batida enchia o
   // api_audit_log — que é append-only e tem retenção de 5 anos — de linhas
