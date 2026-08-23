@@ -177,11 +177,14 @@ export async function PUT(
     },
   });
 
-  // Dispara o processador em background imediatamente para cobrir leads já na janela
+  // Dispara o processador imediatamente para cobrir leads já na janela
   if (parsed.data.is_active) {
-    import("@/lib/appointment-reminders/processor")
-      .then(({ processAppointmentReminders }) => processAppointmentReminders(admin))
-      .catch((err) => logger.warn("[pipeline-reminder] Disparo imediato falhou", { error: String(err) }));
+    try {
+      const { processAppointmentReminders } = await import("@/lib/appointment-reminders/processor");
+      await processAppointmentReminders(admin);
+    } catch (err) {
+      logger.warn("[pipeline-reminder] Disparo imediato falhou", { error: String(err) });
+    }
   }
 
   return ok({ config }, { status: 200 });

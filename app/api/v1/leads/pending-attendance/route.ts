@@ -11,6 +11,7 @@ import type { NextRequest } from "next/server";
 import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -82,10 +83,13 @@ export async function GET(_req: NextRequest): Promise<Response> {
 
   const admin = createAdminClient();
 
-  // Drena os lembretes WhatsApp em background a cada consulta
-  import("@/lib/appointment-reminders/processor")
-    .then(({ processAppointmentReminders }) => processAppointmentReminders(admin))
-    .catch(() => {});
+  // Executa o processador de lembretes WhatsApp de forma assíncrona garantida
+  try {
+    const { processAppointmentReminders } = await import("@/lib/appointment-reminders/processor");
+    await processAppointmentReminders(admin);
+  } catch (procErr) {
+    logger.warn("[pending-attendance] processAppointmentReminders falhou", { error: String(procErr) });
+  }
 
   const { data: leads, error } = await admin
     .from("crm_leads")
