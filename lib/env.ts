@@ -208,8 +208,8 @@ const schema = z.object({
   // Sem prefixo NEXT_PUBLIC_ de propósito: essas seriam queimadas no bundle
   // durante o build da imagem, e o self-hoster roda uma imagem pré-buildada.
   // O <PublicEnvScript/> injeta os valores em runtime.
-  APP_NAME: z.string().optional().default(""),
-  APP_LOGO_URL: z.string().optional().default(""),
+  APP_NAME: z.string().optional().default("Centro do Sorriso"),
+  APP_LOGO_URL: z.string().optional().default("/logo.png"),
   /**
    * Cor da marca — um hex (`#506d48`), do qual `lib/branding/` deriva a rampa
    * inteira. Vazio = o produto se pinta com a cor dele.

@@ -82,7 +82,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
           <img
             src={logo}
             alt={nome}
-            className="h-7 w-auto max-w-[10rem] object-contain"
+            className="h-8 w-auto max-w-[12rem] object-contain"
           />
         ) : (
           <span className={cn("font-semibold tracking-tight", collapsed && "sr-only")}>
