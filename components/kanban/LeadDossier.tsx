@@ -2,7 +2,7 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api/client";
@@ -72,9 +72,25 @@ export function LeadDossier({
   const qc = useQueryClient();
   const edit = useEditLead(pipelineId);
   const move = useMoveCard(pipelineId);
-  const { data: boardData } = useBoard(pipelineId);
+  const directConversationId = lead.conversa?.id ?? null;
+  const { data: fetchedConvData } = useQuery({
+    queryKey: ["contact-conversation", lead.contact_id],
+    queryFn: async () => {
+      if (!lead.contact_id) return null;
+      try {
+        const res = await apiClient.get<{ data: { id: string | null } }>(
+          `/api/v1/contacts/${lead.contact_id}/conversation`,
+        );
+        return res?.data?.id ?? null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: open && !directConversationId && !!lead.contact_id,
+    staleTime: 5_000,
+  });
 
-  const conversationId = lead.conversa?.id ?? null;
+  const conversationId = directConversationId || fetchedConvData || null;
 
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
   const agendamentoData = String(customFields.agendamento_data ?? "").trim();

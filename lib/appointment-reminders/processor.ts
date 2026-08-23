@@ -465,29 +465,61 @@ export async function processAppointmentReminders(
               offset_hours: schedule.offset_hours,
             });
 
-            // Registra mensagem na tabela messages se houver contato associado
-            if (contactId) {
-              try {
-                let conversationId: string | null = null;
-                const { data: conv } = await admin
-                  .from("conversations")
+            // Registra mensagem na tabela messages e vincula à conversa do chat
+            try {
+              if (!contactId && rawPhone) {
+                const formattedPhone = rawPhone.startsWith("+") ? rawPhone : `+${rawPhone}`;
+                const { data: existingContact } = await admin
+                  .from("contacts")
                   .select("id")
                   .eq("organization_id", config.organization_id)
-                  .eq("contact_id", contactId)
-                  .order("updated_at", { ascending: false })
-                  .limit(1)
+                  .or(`phone_number.eq.${formattedPhone},phone_number.eq.${rawPhone}`)
                   .maybeSingle();
 
-                conversationId = conv?.id ?? null;
+                if (existingContact) {
+                  contactId = existingContact.id;
+                } else {
+                  const { data: newContact } = await admin
+                    .from("contacts")
+                    .insert({
+                      organization_id: config.organization_id,
+                      name: contactName || "Paciente",
+                      phone_number: formattedPhone,
+                      source: "WhatsApp",
+                    })
+                    .select("id")
+                    .maybeSingle();
+                  if (newContact) {
+                    contactId = newContact.id;
+                  }
+                }
+
+                if (contactId) {
+                  await admin
+                    .from("crm_leads")
+                    .update({ contact_id: contactId })
+                    .eq("id", lead.id);
+                }
+              }
+
+              if (contactId && channelSession?.id) {
+                const { ensureConversation } = await import("@/lib/automation/start-conversation");
+                const conversationId = await ensureConversation(
+                  admin,
+                  config.organization_id,
+                  contactId,
+                  channelSession.id,
+                );
 
                 if (conversationId) {
                   await admin.from("messages").insert({
                     organization_id: config.organization_id,
                     conversation_id: conversationId,
+                    channel_session_id: channelSession.id,
                     contact_id: contactId,
-                    type: "template",
+                    type: "text",
                     direction: "outbound",
-                    status: "sent",
+                    status: "delivered",
                     body: messageBody,
                     template_name: schedule.template_name,
                     template_language: schedule.template_language || "pt_BR",
@@ -495,10 +527,17 @@ export async function processAppointmentReminders(
                     sent_via: "ai",
                     sent_at: clock().toISOString(),
                   });
+
+                  await admin.from("conversations").update({
+                    last_message_preview: messageBody.slice(0, 150),
+                    last_message_at: clock().toISOString(),
+                    last_message_direction: "outbound",
+                    updated_at: clock().toISOString(),
+                  }).eq("id", conversationId);
                 }
-              } catch (msgErr) {
-                logger.warn("[appointment-reminders] Falha ao registrar linha em messages", { error: String(msgErr) });
               }
+            } catch (msgErr) {
+              logger.warn("[appointment-reminders] Falha ao registrar linha em messages", { error: String(msgErr) });
             }
 
             summary.sent++;
