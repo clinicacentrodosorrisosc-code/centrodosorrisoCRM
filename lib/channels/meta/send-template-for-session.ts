@@ -57,26 +57,30 @@ export async function sendTemplateForSession(
   let phoneNumberId = process.env.META_PHONE_NUMBER_ID ?? "";
   let token = process.env.META_SYSTEM_USER_TOKEN ?? "";
 
-  if (!phoneNumberId || !token) {
-    const session = await metaSessionForOrg(input.organizationId);
-    if (session?.phoneNumberId) phoneNumberId = session.phoneNumberId;
-    if (session?.tokenEncrypted) {
-      try {
-        token = (await decryptWebhookSecret(db, session.tokenEncrypted)) ?? "";
-      } catch {}
-    }
+  const session = await metaSessionForOrg(input.organizationId);
+  let sessionToken = "";
+  if (session?.tokenEncrypted) {
+    try {
+      sessionToken = (await decryptWebhookSecret(db, session.tokenEncrypted)) ?? "";
+    } catch {}
   }
 
-  const resultado = await sendTemplate({
-    phoneNumberId,
-    token,
+  // Prioriza o token que existir
+  if (!token && sessionToken) {
+    token = sessionToken;
+  }
+  if (!phoneNumberId && session?.phoneNumberId) {
+    phoneNumberId = session.phoneNumberId;
+  }
+
+  let resultado = await sendTemplate({
+    phoneNumberId: phoneNumberId || session?.phoneNumberId || "",
+    token: token || sessionToken,
     graphVersion: process.env.META_GRAPH_VERSION ?? "v22.0",
     to: input.to,
     binding: {
       name: input.name,
       language: input.language,
-      // Ver o cabeçalho: o hash sai do espelho dos dois lados, então `bindingState`
-      // aqui checa existência e aprovação, não obsolescência.
       contractHash: linha?.contract_hash ?? "",
       values: input.values,
     },
@@ -90,6 +94,34 @@ export async function sendTemplateForSession(
         }
       : null,
   });
+
+  // Se der erro 190 e existir um token alternativo (da sessão ou do env), tenta com ele
+  if (!resultado.sent && resultado.reason === "api_error" && resultado.code === 190) {
+    const alternateToken = token === sessionToken ? (process.env.META_SYSTEM_USER_TOKEN ?? "") : sessionToken;
+    if (alternateToken && alternateToken !== token) {
+      resultado = await sendTemplate({
+        phoneNumberId: phoneNumberId || session?.phoneNumberId || "",
+        token: alternateToken,
+        graphVersion: process.env.META_GRAPH_VERSION ?? "v22.0",
+        to: input.to,
+        binding: {
+          name: input.name,
+          language: input.language,
+          contractHash: linha?.contract_hash ?? "",
+          values: input.values,
+        },
+        current: linha
+          ? {
+              name: linha.name,
+              language: linha.language,
+              contractHash: linha.contract_hash,
+              status: linha.status,
+              components: linha.components,
+            }
+          : null,
+      });
+    }
+  }
 
   if (resultado.sent) return resultado.externalId;
 

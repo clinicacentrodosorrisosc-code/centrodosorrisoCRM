@@ -175,7 +175,7 @@ export const metaCloudAdapter: ChannelAdapter = {
 
     const corpo = mediaPayload(envelope) ?? { type: "text", text: { body: envelope.body ?? "" } };
 
-    const res = await fetch(
+    let res = await fetch(
       `https://graph.facebook.com/${creds.graphVersion}/${creds.phoneNumberId}/messages`,
       {
         method: "POST",
@@ -192,10 +192,39 @@ export const metaCloudAdapter: ChannelAdapter = {
       },
     );
 
-    const body = (await res.json().catch(() => ({}))) as {
+    let body = (await res.json().catch(() => ({}))) as {
       messages?: { id?: string }[];
       error?: { code?: number; message?: string; error_data?: { details?: string } };
     };
+
+    // Se falhar com 190 (token expirado), tenta com o token de ambiente
+    if (body.error?.code === 190) {
+      const envCreds = metaCredsFromEnv();
+      if (envCreds && envCreds.token && envCreds.token !== creds.token) {
+        const retryPhoneId = envCreds.phoneNumberId || creds.phoneNumberId;
+        const retryRes = await fetch(
+          `https://graph.facebook.com/${envCreds.graphVersion}/${retryPhoneId}/messages`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${envCreds.token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              recipient_type: "individual",
+              to: envelope.to,
+              ...corpo,
+            }),
+          },
+        );
+        const retryBody = (await retryRes.json().catch(() => ({}))) as typeof body;
+        if (retryRes.ok && !retryBody.error) {
+          res = retryRes;
+          body = retryBody;
+        }
+      }
+    }
 
     if (!res.ok || body.error) {
       // `details` é o campo que diz QUAL parâmetro divergiu; sem ele o operador lê
