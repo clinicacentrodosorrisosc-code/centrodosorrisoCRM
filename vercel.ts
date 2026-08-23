@@ -20,6 +20,7 @@ const config: VercelConfig = {
   // Nota: Contas Hobby na Vercel suportam apenas crons diários (max 1x/dia).
   // Crons frequentes podem ser acionados via worker externo / QStash / cron-job.org se necessário.
   crons: [
+    { path: "/api/v1/cron/followup-flow-worker", schedule: "* * * * *" },
     { path: "/api/v1/cron/lgpd-sla-watcher", schedule: "0 12 * * *" },
   ],
   functions: {
