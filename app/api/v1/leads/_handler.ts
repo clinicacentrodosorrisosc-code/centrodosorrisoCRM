@@ -520,8 +520,12 @@ export async function updateLeadHandler(
     metadata: { ...a.metadataActor, fields },
   });
 
+  const { triggerImmediateFollowupProcessing } = await import("@/lib/followup/instant-trigger");
+  void triggerImmediateFollowupProcessing(existing.organization_id);
+
   return updated as Record<string, unknown>;
 }
+
 
 // ---------------------------------------------------------------------------
 // move (within same pipeline) — extraido para reuso pelo MCP (S-13.04)

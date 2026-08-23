@@ -324,13 +324,15 @@ export function processNode(input: {
             return { kind: "advance", next_node_id: edge.target, next_eval_at: clock() };
           }
           const [anoStr, mesStr, diaStr] = dataStr.split("-");
-          const ano = Number(anoStr) || 2026;
-          const mes = Number(mesStr) || 1;
-          const dia = Number(diaStr) || 1;
+          const ano = (anoStr || "2026").padStart(4, "0");
+          const mes = (mesStr || "01").padStart(2, "0");
+          const dia = (diaStr || "01").padStart(2, "0");
           const [horaPart, minPart] = horaStr.split(":");
-          const hora = Number(horaPart) || 0;
-          const min = Number(minPart) || 0;
-          const agendamentoData = new Date(ano, mes - 1, dia, hora, min, 0);
+          const hora = (horaPart || "09").padStart(2, "0");
+          const min = (minPart || "00").padStart(2, "0");
+
+          // Constrói explicitamente o timestamp ISO com fuso horário de Brasília (-03:00)
+          const agendamentoData = new Date(`${ano}-${mes}-${dia}T${hora}:${min}:00-03:00`);
           const offsetMs = (node.config.offset_hours ?? 24) * 60 * 60 * 1000;
           const targetEvalAt = new Date(agendamentoData.getTime() - offsetMs);
 
@@ -342,6 +344,7 @@ export function processNode(input: {
 
           return { kind: "wait", next_eval_at: targetEvalAt };
         }
+
 
         const planejada = node.config.mode === "smart" ? esperaPlanejadaDe(enrollment.timing_plan, node.id) : null;
         const durationMs =
