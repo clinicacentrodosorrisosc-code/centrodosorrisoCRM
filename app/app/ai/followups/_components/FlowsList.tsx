@@ -4,8 +4,22 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { FlowArrow, Plus } from "@/lib/ui/icons";
-import { useFollowupFlows, type FollowupFlowPointerRow } from "@/hooks/followup/useFollowupFlows";
+import { FlowArrow, Plus, Trash } from "@/lib/ui/icons";
+import {
+  useFollowupFlows,
+  useDeleteFollowupFlow,
+  type FollowupFlowPointerRow,
+} from "@/hooks/followup/useFollowupFlows";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { FlowStatusBadge } from "./FlowStatusBadge";
 import { NewFlowDialog } from "./NewFlowDialog";
 
@@ -24,7 +38,9 @@ function formatUpdatedAt(iso: string): string {
 
 export function FlowsList({ initialData, canWrite }: Props) {
   const { data } = useFollowupFlows({ initialData });
+  const deleteFlow = useDeleteFollowupFlow();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [flowToDelete, setFlowToDelete] = useState<FollowupFlowPointerRow | null>(null);
 
   const flows = data ?? [];
 
@@ -33,6 +49,13 @@ export function FlowsList({ initialData, canWrite }: Props) {
       <Plus size={14} aria-hidden className="mr-2" /> Novo fluxo
     </Button>
   );
+
+  const handleDeleteConfirm = () => {
+    if (!flowToDelete) return;
+    deleteFlow.mutate(flowToDelete.id, {
+      onSettled: () => setFlowToDelete(null),
+    });
+  };
 
   if (flows.length === 0) {
     return (
@@ -57,14 +80,12 @@ export function FlowsList({ initialData, canWrite }: Props) {
         <div className="flex justify-end">{newFlowButton}</div>
       )}
 
-
-
       <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {flows.map((flow) => (
-          <li key={flow.id}>
+          <li key={flow.id} className="relative group">
             <Link href={`/app/ai/followups/${flow.id}`} className="block h-full">
               <Card className="flex h-full flex-col gap-3 p-4 transition-colors hover:border-accent-400">
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-2 pr-6">
                   <h3 className="min-w-0 flex-1 truncate font-medium" title={flow.name}>
                     {flow.name}
                   </h3>
@@ -85,11 +106,50 @@ export function FlowsList({ initialData, canWrite }: Props) {
                 </p>
               </Card>
             </Link>
+
+            {canWrite && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setFlowToDelete(flow);
+                }}
+                className="absolute top-3 right-3 p-1.5 rounded-md text-text-muted hover:text-danger-500 hover:bg-danger-500/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                title="Excluir fluxo"
+                aria-label={`Excluir fluxo ${flow.name}`}
+              >
+                <Trash size={16} />
+              </button>
+            )}
           </li>
         ))}
       </ul>
 
       {canWrite && <NewFlowDialog open={dialogOpen} onOpenChange={setDialogOpen} />}
+
+      <AlertDialog open={!!flowToDelete} onOpenChange={(open) => !open && setFlowToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir fluxo de follow-up?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza de que deseja excluir o fluxo <strong>{flowToDelete?.name}</strong>?
+              Esta ação removerá o fluxo e cancelará qualquer envio pendente na fila para este fluxo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteFlow.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleteFlow.isPending}
+              className="bg-danger-600 hover:bg-danger-700 text-white"
+            >
+              {deleteFlow.isPending ? "Excluindo..." : "Sim, excluir fluxo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+

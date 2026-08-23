@@ -60,3 +60,27 @@ export function useCreateFollowupFlow() {
     },
   });
 }
+
+export function useDeleteFollowupFlow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ["followup", "flows", "delete"],
+    mutationFn: async (id: string) => {
+      const res = await apiClient.delete<{ data: { id: string; deleted: true } }>(
+        `/api/v1/ai/followup-flows/${id}`,
+      );
+      return res.data;
+    },
+    onSuccess: (_, deletedId) => {
+      qc.setQueryData<FollowupFlowPointerRow[]>(followupFlowsListQueryKey, (prev) =>
+        prev ? prev.filter((f) => f.id !== deletedId) : [],
+      );
+      qc.invalidateQueries({ queryKey: followupFlowsListQueryKey });
+      toast.success("Fluxo excluído com sucesso.");
+    },
+    onError: (err) => {
+      showApiError(err);
+    },
+  });
+}
+

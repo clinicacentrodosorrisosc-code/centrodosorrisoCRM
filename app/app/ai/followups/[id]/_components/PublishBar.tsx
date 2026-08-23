@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Trash } from "@/lib/ui/icons";
 import {
   Select,
   SelectContent,
@@ -11,6 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
 import { ApiError } from "@/lib/api/types";
 import type { FlowGraph } from "@/lib/followup/graph-schema";
@@ -23,6 +36,7 @@ import {
   useUpdateHandoffPolicy,
   type FollowupFlowDetailRow,
 } from "@/hooks/followup/useFollowupFlow";
+import { useDeleteFollowupFlow } from "@/hooks/followup/useFollowupFlows";
 import { FlowStatusBadge } from "../../_components/FlowStatusBadge";
 import { TriggerConfigControl } from "./TriggerConfigControl";
 
@@ -43,11 +57,14 @@ const HANDOFF_LABEL: Record<FollowupFlowDetailRow["handoff_policy"], string> = {
 };
 
 export function PublishBar({ flowId, flow, graph, dirty, onSaved, onPublishErrors, onPublishSuccess }: Props) {
+  const router = useRouter();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const save = useSaveFollowupFlowDraft(flowId);
   const publish = usePublishFollowupFlow(flowId);
   const disable = useDisableFollowupFlow(flowId);
   const rollback = useRollbackFollowupFlow(flowId);
   const handoffPolicy = useUpdateHandoffPolicy(flowId);
+  const deleteFlow = useDeleteFollowupFlow();
 
   const onSave = () => {
     save.mutate(graph, { onSuccess: () => onSaved(graph) });
@@ -91,62 +108,106 @@ export function PublishBar({ flowId, flow, graph, dirty, onSaved, onPublishError
     rollback.mutate(flow.previous_version_id);
   };
 
-  const busy = save.isPending || publish.isPending || disable.isPending || rollback.isPending;
+  const handleDelete = () => {
+    deleteFlow.mutate(flowId, {
+      onSuccess: () => {
+        router.push("/app/ai/followups");
+      },
+    });
+  };
+
+  const busy = save.isPending || publish.isPending || disable.isPending || rollback.isPending || deleteFlow.isPending;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
-      <div className="flex items-center gap-2">
-        <h1 className="text-sm font-semibold text-text">{flow.name}</h1>
-        <FlowStatusBadge status={flow.status} />
-        {dirty && (
-          <Badge variant="warning" data-testid="dirty-indicator">
-            Alterações não salvas
-          </Badge>
-        )}
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
+        <div className="flex items-center gap-2">
+          <h1 className="text-sm font-semibold text-text">{flow.name}</h1>
+          <FlowStatusBadge status={flow.status} />
+          {dirty && (
+            <Badge variant="warning" data-testid="dirty-indicator">
+              Alterações não salvas
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <TriggerConfigControl flowId={flowId} triggerConfig={flow.trigger_config} />
+
+          <Select value={flow.handoff_policy} onValueChange={(v) => handoffPolicy.mutate(v as FollowupFlowDetailRow["handoff_policy"])}>
+            <SelectTrigger className="w-56" aria-label="Política de handoff">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(HANDOFF_LABEL) as Array<keyof typeof HANDOFF_LABEL>).map((k) => (
+                <SelectItem key={k} value={k}>
+                  {HANDOFF_LABEL[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button type="button" variant="secondary" size="sm" disabled={!dirty || busy} onClick={onSave}>
+            {save.isPending ? "Salvando…" : "Salvar"}
+          </Button>
+          <Button type="button" size="sm" disabled={busy} onClick={onPublish} data-testid="publish-button">
+            {publish.isPending ? "Publicando…" : "Publicar"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || flow.status === "disabled"}
+            onClick={onDisable}
+          >
+            Desativar
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || !canRollback}
+            onClick={onRollback}
+            data-testid="rollback-button"
+          >
+            Rollback
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => setDeleteOpen(true)}
+            className="text-danger-500 hover:text-danger-600 hover:bg-danger-500/10"
+          >
+            <Trash size={14} className="mr-1" />
+            Excluir
+          </Button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <TriggerConfigControl flowId={flowId} triggerConfig={flow.trigger_config} />
-
-        <Select value={flow.handoff_policy} onValueChange={(v) => handoffPolicy.mutate(v as FollowupFlowDetailRow["handoff_policy"])}>
-          <SelectTrigger className="w-56" aria-label="Política de handoff">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(HANDOFF_LABEL) as Array<keyof typeof HANDOFF_LABEL>).map((k) => (
-              <SelectItem key={k} value={k}>
-                {HANDOFF_LABEL[k]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Button type="button" variant="secondary" size="sm" disabled={!dirty || busy} onClick={onSave}>
-          {save.isPending ? "Salvando…" : "Salvar"}
-        </Button>
-        <Button type="button" size="sm" disabled={busy} onClick={onPublish} data-testid="publish-button">
-          {publish.isPending ? "Publicando…" : "Publicar"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy || flow.status === "disabled"}
-          onClick={onDisable}
-        >
-          Desativar
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy || !canRollback}
-          onClick={onRollback}
-          data-testid="rollback-button"
-        >
-          Rollback
-        </Button>
-      </div>
-    </div>
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir fluxo de follow-up?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza de que deseja excluir <strong>{flow.name}</strong>?
+              Esta ação cancelará todos os agendamentos pendentes na fila deste fluxo e não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={busy}
+              className="bg-danger-600 hover:bg-danger-700 text-white"
+            >
+              {deleteFlow.isPending ? "Excluindo..." : "Sim, excluir fluxo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
+

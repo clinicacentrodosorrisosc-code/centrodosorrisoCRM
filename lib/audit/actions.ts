@@ -214,8 +214,10 @@ export const AUDIT_ACTIONS = [
   "ai.router_members_updated",
   "followup_flow.created",
   "followup_flow.updated",
+  "followup_flow.deleted",
   "followup_flow.published",
   "followup_flow.disabled",
+
   "followup_flow.rolled_back",
   "followup.worker_run",
   "followup.silence_sweep_run",
