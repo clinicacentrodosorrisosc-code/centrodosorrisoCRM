@@ -118,6 +118,31 @@ function buildInterpolatedText(
 }
 
 /**
+ * Extrai data e hora do agendamento aceitando múltiplos nomes de propriedades em custom_fields
+ */
+function extractAgendamentoFields(custom: Record<string, unknown>): { dataStr: string; horaStr: string } {
+  const dataStr = String(
+    custom.agendamento_data ??
+    custom.data_agendamento ??
+    custom.appointment_date ??
+    custom.data ??
+    (typeof custom.agendamento === "object" && custom.agendamento !== null ? (custom.agendamento as Record<string, unknown>).data : "") ??
+    "",
+  ).trim();
+
+  const horaStr = String(
+    custom.agendamento_hora ??
+    custom.hora_agendamento ??
+    custom.appointment_time ??
+    custom.hora ??
+    (typeof custom.agendamento === "object" && custom.agendamento !== null ? (custom.agendamento as Record<string, unknown>).hora : "") ??
+    "09:00",
+  ).trim();
+
+  return { dataStr, horaStr };
+}
+
+/**
  * Processa todos os lembretes de agendamento pendentes.
  * Chamado a cada minuto pelo cron `followup-flow-worker`.
  */
@@ -172,26 +197,26 @@ export async function processAppointmentReminders(
     if (schedules.length === 0) continue;
 
     try {
-      // 2. Busca leads do pipeline (sem filtros restritivos no JSONB para evitar bugs do PostgREST)
-      const stageFilter = (config.active_stage_ids as string[]) ?? [];
+      // 2. Busca todas as etapas pertencentes ao pipeline
+      const { data: stages } = await admin
+        .from("crm_stages")
+        .select("id")
+        .eq("pipeline_id", config.pipeline_id);
 
+      const allStageIds = (stages ?? []).map((s: { id: string }) => s.id);
+      const stageFilter = (config.active_stage_ids as string[]) ?? [];
+      const targetStageIds = stageFilter.length > 0 ? stageFilter : allStageIds;
+
+      // 3. Busca leads do pipeline (abrangente: por pipeline_id OU por stage_id)
       let leadsQuery = admin
         .from("crm_leads")
-        .select("id, title, stage_id, custom_fields, contact_id")
-        .eq("organization_id", config.organization_id)
-        .is("won_at", null)
-        .is("lost_at", null);
+        .select("id, title, pipeline_id, stage_id, custom_fields, contact_id, won_at, lost_at")
+        .eq("organization_id", config.organization_id);
 
-      if (stageFilter.length > 0) {
-        leadsQuery = leadsQuery.in("stage_id", stageFilter);
+      if (targetStageIds.length > 0) {
+        leadsQuery = leadsQuery.or(`pipeline_id.eq.${config.pipeline_id},stage_id.in.(${targetStageIds.join(",")})`);
       } else {
-        const { data: stages } = await admin
-          .from("crm_stages")
-          .select("id")
-          .eq("pipeline_id", config.pipeline_id);
-        const stageIds = (stages ?? []).map((s: { id: string }) => s.id);
-        if (stageIds.length === 0) continue;
-        leadsQuery = leadsQuery.in("stage_id", stageIds);
+        leadsQuery = leadsQuery.eq("pipeline_id", config.pipeline_id);
       }
 
       const { data: leads, error: leadsErr } = await leadsQuery;
@@ -206,12 +231,18 @@ export async function processAppointmentReminders(
       }
 
       for (const lead of leads ?? []) {
+        // Ignora leads já finalizados como ganhos ou perdidos
+        if (lead.won_at || lead.lost_at) continue;
+
         const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
-        const dataStr = String(customFields.agendamento_data ?? "").trim();
-        const horaStr = String(customFields.agendamento_hora ?? "").trim() || "09:00";
+        const { dataStr, horaStr } = extractAgendamentoFields(customFields);
 
         // Se o lead não tem data de agendamento preenchida, pula
         if (!dataStr) continue;
+
+        const status = String(customFields.agendamento_status ?? "agendado").toLowerCase().trim();
+        // Ignora se foi cancelado
+        if (status === "cancelado") continue;
 
         summary.leads_evaluated++;
 
