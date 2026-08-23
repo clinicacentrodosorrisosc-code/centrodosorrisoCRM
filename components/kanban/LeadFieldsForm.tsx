@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/client";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +118,8 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
   const initialAgendamentoHora = String(customFields.agendamento_hora ?? "");
   const initialAgendamentoStatus = (customFields.agendamento_status as FormShape["agendamento_status"]) ?? "agendado";
 
+  const qc = useQueryClient();
+
   const form = useForm<FormShape>({
     defaultValues: {
       title: lead.title,
@@ -162,85 +166,46 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
   async function handleMarcarPresenca(status: FormShape["agendamento_status"]) {
     form.setValue("agendamento_status", status);
 
-    const values = form.getValues();
-    const tags = values.tagsRaw
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const valueCents = hasDetailedOrcamento
-      ? orcamento!.total_cents
-      : values.valueReais.trim() ? parseReaisToCents(values.valueReais.trim()) : null;
-
-    const curCustom = (lead.custom_fields ?? {}) as Record<string, unknown>;
-    const remarcacoesCount = status === "remarcado" || isRescheduling
-      ? (Number(curCustom.remarcacoes_count) || 0) + 1
-      : Number(curCustom.remarcacoes_count) || 0;
-
-    const patch: Record<string, unknown> = {
-      title: values.title.trim(),
-      description: values.description.trim() ? values.description.trim() : null,
-      source: values.source.trim() || "WhatsApp",
-      custom_fields: {
-        ...curCustom,
-        procedimento: values.procedimento.trim() || null,
-        agendamento_data: values.agendamento_data || null,
-        agendamento_hora: values.agendamento_hora || null,
-        agendamento_status: status === "remarcado" ? "agendado" : status,
-        remarcacoes_count: remarcacoesCount,
-        ...(status === "remarcado" ? { ultima_remarcacao_at: new Date().toISOString() } : {}),
-      },
-      value_cents: valueCents,
-      tags,
-      expected_close_date: values.expected_close_date || null,
-    };
+    if (status === "remarcado") {
+      setIsRescheduling(true);
+      form.setValue("agendamento_status", "agendado");
+      toast.info("Remarcação ativada! Selecione a nova data e horário abaixo.");
+      return;
+    }
 
     try {
-      await edit.mutateAsync({
-        leadId: lead.id,
-        patch: patch as UpdateLeadInput,
-      });
+      // Chama o endpoint atômico de presença que atualiza o lead, move a etapa e grava timeline sem conflito de OCC
+      const res = await apiClient.post<{
+        data: {
+          lead: Lead;
+          status: string;
+          moved_to_stage: { id: string; name: string } | null;
+        };
+      }>(`/api/v1/leads/${lead.id}/attendance`, { status });
 
-      // Se marcou 'faltou', move o lead automaticamente para a etapa 'Não Compareceu'
-      if (status === "faltou" && boardData?.stages) {
-        const noShowStage = boardData.stages.find((s) =>
-          /n[aã]o\s*compareceu|faltou|no[-\s]?show/i.test(s.name),
+      const moved = res.data.moved_to_stage;
+      if (status === "compareceu") {
+        toast.success(
+          moved
+            ? `Presença confirmada! Lead movido automaticamente para "${moved.name}".`
+            : "Presença confirmada! Paciente compareceu à avaliação.",
         );
-        if (noShowStage && noShowStage.id !== lead.stage_id) {
-          await move.mutateAsync({
-            leadId: lead.id,
-            stageId: noShowStage.id,
-            positionInStage: 1000,
-            expectedUpdatedAt: lead.updated_at,
-          });
-          toast.success(`Falta registrada! Lead movido automaticamente para "${noShowStage.name}".`);
-        } else {
-          toast.error("Lead marcado como Não Compareceu (Falta registrada)");
-        }
-      } else if (status === "compareceu" && boardData?.stages) {
-        const orcStage = boardData.stages.find((s) =>
-          /or[çc]amento|em\s*negocia[cç][aã]o|proposta/i.test(s.name) && !s.is_won && !s.is_lost,
+      } else if (status === "faltou") {
+        toast.error(
+          moved
+            ? `Falta registrada! Lead movido automaticamente para "${moved.name}".`
+            : "Lead marcado como Não Compareceu (Falta registrada).",
         );
-        if (orcStage && orcStage.id !== lead.stage_id) {
-          await move.mutateAsync({
-            leadId: lead.id,
-            stageId: orcStage.id,
-            positionInStage: 1000,
-            expectedUpdatedAt: lead.updated_at,
-          });
-          toast.success(`Presença confirmada! Lead movido automaticamente para "${orcStage.name}".`);
-        } else {
-          toast.success("Presença confirmada! Paciente compareceu à avaliação.");
-        }
-      } else if (status === "remarcado") {
-        setIsRescheduling(true);
-        form.setValue("agendamento_status", "agendado");
-        toast.info("Remarcação ativada! Selecione a nova data e horário abaixo.");
       }
 
+      qc.invalidateQueries({ queryKey: ["kanban"] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: ["lead", lead.id] });
+      qc.invalidateQueries({ queryKey: ["pending-attendance-alerts"] });
+
       onSaved?.();
-    } catch {
-      // toast already shown
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao atualizar status da consulta");
     }
   }
 

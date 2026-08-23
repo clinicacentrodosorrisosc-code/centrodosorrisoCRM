@@ -2,8 +2,10 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { apiClient } from "@/lib/api/client";
 import { useLeadTimeline } from "@/hooks/leads/useLeadTimeline";
 import { useEditLead } from "@/hooks/kanban/useUpdateLead";
 import { useMoveCard } from "@/hooks/kanban/useMoveCard";
@@ -67,6 +69,7 @@ export function LeadDossier({
   const [activeTab, setActiveTab] = useState<"chat" | "dados" | "timeline">("chat");
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  const qc = useQueryClient();
   const edit = useEditLead(pipelineId);
   const move = useMoveCard(pipelineId);
   const { data: boardData } = useBoard(pipelineId);
@@ -80,50 +83,35 @@ export function LeadDossier({
 
   async function handleHeaderMarcarPresenca(status: "compareceu" | "faltou") {
     try {
-      await edit.mutateAsync({
-        leadId: lead.id,
-        patch: {
-          custom_fields: {
-            ...customFields,
-            agendamento_status: status,
-            agendamento_data: agendamentoData || new Date().toISOString().slice(0, 10),
-          },
-        } as UpdateLeadInput,
-      });
+      const res = await apiClient.post<{
+        data: {
+          lead: Lead;
+          status: string;
+          moved_to_stage: { id: string; name: string } | null;
+        };
+      }>(`/api/v1/leads/${lead.id}/attendance`, { status });
 
-      if (status === "faltou" && boardData?.stages) {
-        const noShowStage = boardData.stages.find((s) =>
-          /n[aã]o\s*compareceu|faltou|no[-\s]?show/i.test(s.name),
+      const moved = res.data.moved_to_stage;
+      if (status === "compareceu") {
+        toast.success(
+          moved
+            ? `Presença confirmada! Lead movido automaticamente para "${moved.name}".`
+            : "Presença confirmada! Paciente compareceu à avaliação.",
         );
-        if (noShowStage && noShowStage.id !== lead.stage_id) {
-          await move.mutateAsync({
-            leadId: lead.id,
-            stageId: noShowStage.id,
-            positionInStage: 1000,
-            expectedUpdatedAt: lead.updated_at,
-          });
-          toast.success(`Marcado como Não Compareceu e movido para "${noShowStage.name}"!`);
-        } else {
-          toast.error("Lead marcado como Não Compareceu (Falta registrada)");
-        }
-      } else if (status === "compareceu" && boardData?.stages) {
-        const orcStage = boardData.stages.find((s) =>
-          /or[çc]amento|em\s*negocia[cç][aã]o|proposta/i.test(s.name) && !s.is_won && !s.is_lost,
+      } else if (status === "faltou") {
+        toast.error(
+          moved
+            ? `Falta registrada! Lead movido automaticamente para "${moved.name}".`
+            : "Lead marcado como Não Compareceu (Falta registrada).",
         );
-        if (orcStage && orcStage.id !== lead.stage_id) {
-          await move.mutateAsync({
-            leadId: lead.id,
-            stageId: orcStage.id,
-            positionInStage: 1000,
-            expectedUpdatedAt: lead.updated_at,
-          });
-          toast.success(`Presença confirmada! Lead movido automaticamente para "${orcStage.name}".`);
-        } else {
-          toast.success("Presença confirmada! Paciente compareceu à avaliação.");
-        }
       }
-    } catch {
-      // toast shown
+
+      // Atualiza board e lead
+      qc.invalidateQueries({ queryKey: ["kanban"] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: ["lead", lead.id] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao atualizar status da consulta");
     }
   }
 
