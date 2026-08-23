@@ -29,7 +29,8 @@ async function handle(req: NextRequest): Promise<Response> {
   const auth = req.headers.get("authorization") ?? "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
   const headerSecret = req.headers.get("x-cron-secret")?.trim() ?? "";
-  const provided = bearer || headerSecret;
+  const querySecret = req.nextUrl.searchParams.get("secret")?.trim() ?? "";
+  const provided = bearer || headerSecret || querySecret;
 
   const cronSecret = env.INTERNAL_CRON_SECRET;
   const fallbackSecret = env.INTERNAL_SECRET;

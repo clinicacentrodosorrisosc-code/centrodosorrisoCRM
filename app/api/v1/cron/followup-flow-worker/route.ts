@@ -51,7 +51,10 @@ async function handle(req: NextRequest): Promise<Response> {
 
   const auth = req.headers.get("authorization") ?? "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
-  const provided = bearer || (req.headers.get("x-cron-secret")?.trim() ?? "");
+  const headerSecret = req.headers.get("x-cron-secret")?.trim() ?? "";
+  const querySecret = req.nextUrl.searchParams.get("secret")?.trim() ?? "";
+  const provided = bearer || headerSecret || querySecret;
+
   const accepted = [env.INTERNAL_CRON_SECRET, env.INTERNAL_SECRET].filter(Boolean);
   if (accepted.length === 0 || !provided || !accepted.includes(provided)) {
     return fail("forbidden", "Cron secret missing or invalid.", 403, { requestId });
