@@ -210,7 +210,7 @@ export async function processAppointmentReminders(
       // 3. Busca leads do pipeline (abrangente: por pipeline_id OU por stage_id)
       let leadsQuery = admin
         .from("crm_leads")
-        .select("id, title, pipeline_id, stage_id, custom_fields, contact_id, won_at, lost_at")
+        .select("id, title, pipeline_id, stage_id, custom_fields, contact_id, status")
         .eq("organization_id", config.organization_id);
 
       if (targetStageIds.length > 0) {
@@ -231,8 +231,8 @@ export async function processAppointmentReminders(
       }
 
       for (const lead of leads ?? []) {
-        // Ignora leads já finalizados como ganhos ou perdidos
-        if (lead.won_at || lead.lost_at) continue;
+        // Ignora leads já finalizados como perdidos
+        if (lead.status === "lost") continue;
 
         const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
         const { dataStr, horaStr } = extractAgendamentoFields(customFields);

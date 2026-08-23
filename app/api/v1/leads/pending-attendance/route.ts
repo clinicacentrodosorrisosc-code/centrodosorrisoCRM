@@ -53,6 +53,28 @@ function normalizeTime(raw: string): string {
   return "09:00";
 }
 
+function extractAgendamentoFields(custom: Record<string, unknown>): { dataStr: string; horaStr: string } {
+  const dataStr = String(
+    custom.agendamento_data ??
+    custom.data_agendamento ??
+    custom.appointment_date ??
+    custom.data ??
+    (typeof custom.agendamento === "object" && custom.agendamento !== null ? (custom.agendamento as Record<string, unknown>).data : "") ??
+    "",
+  ).trim();
+
+  const horaStr = String(
+    custom.agendamento_hora ??
+    custom.hora_agendamento ??
+    custom.appointment_time ??
+    custom.hora ??
+    (typeof custom.agendamento === "object" && custom.agendamento !== null ? (custom.agendamento as Record<string, unknown>).hora : "") ??
+    "09:00",
+  ).trim();
+
+  return { dataStr, horaStr };
+}
+
 export async function GET(_req: NextRequest): Promise<Response> {
   const auth = await requireRole("viewer");
   if (!auth.ok) return auth.response;
@@ -77,8 +99,7 @@ export async function GET(_req: NextRequest): Promise<Response> {
       contacts:contact_id(phone_number, name, display_name)
     `)
     .eq("organization_id", org.orgId)
-    .is("won_at", null)
-    .is("lost_at", null);
+    .neq("status", "lost");
 
   if (error) {
     return fail("internal_error", error.message, 500);
@@ -89,8 +110,7 @@ export async function GET(_req: NextRequest): Promise<Response> {
 
   for (const lead of leads ?? []) {
     const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
-    const rawData = String(custom.agendamento_data ?? "").trim();
-    const rawHora = String(custom.agendamento_hora ?? "").trim();
+    const { dataStr: rawData, horaStr: rawHora } = extractAgendamentoFields(custom);
     const status = String(custom.agendamento_status ?? "agendado").toLowerCase().trim();
 
     if (!rawData) continue;

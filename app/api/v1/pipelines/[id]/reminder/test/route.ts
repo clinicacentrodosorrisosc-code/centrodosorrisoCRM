@@ -160,7 +160,7 @@ export async function POST(
   // 2. Busca TODOS os leads do pipeline
   const { data: leads, error: leadsErr } = await admin
     .from("crm_leads")
-    .select("id, title, stage_id, custom_fields, contact_id, status, won_at, lost_at")
+    .select("id, title, stage_id, custom_fields, contact_id, status")
     .eq("organization_id", org.orgId)
     .eq("pipeline_id", pipelineId)
     .neq("status", "archived");
@@ -197,7 +197,7 @@ export async function POST(
   }
 
   for (const lead of leads) {
-    if (lead.won_at || lead.lost_at) continue;
+    if (lead.status === "lost") continue;
 
     // Filtro de etapas se configurado
     if (activeStageIds.length > 0 && !activeStageIds.includes(lead.stage_id)) {
