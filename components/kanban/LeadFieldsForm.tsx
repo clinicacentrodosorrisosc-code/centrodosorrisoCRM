@@ -198,7 +198,8 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
         );
       }
 
-      qc.invalidateQueries({ queryKey: ["kanban"] });
+      qc.invalidateQueries({ queryKey: ["board"] });
+      qc.invalidateQueries({ queryKey: ["board", pipelineId] });
       qc.invalidateQueries({ queryKey: ["leads"] });
       qc.invalidateQueries({ queryKey: ["lead", lead.id] });
       qc.invalidateQueries({ queryKey: ["pending-attendance-alerts"] });

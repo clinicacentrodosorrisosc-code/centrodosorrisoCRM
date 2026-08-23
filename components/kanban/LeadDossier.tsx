@@ -107,9 +107,11 @@ export function LeadDossier({
       }
 
       // Atualiza board e lead
-      qc.invalidateQueries({ queryKey: ["kanban"] });
+      qc.invalidateQueries({ queryKey: ["board"] });
+      qc.invalidateQueries({ queryKey: ["board", pipelineId] });
       qc.invalidateQueries({ queryKey: ["leads"] });
       qc.invalidateQueries({ queryKey: ["lead", lead.id] });
+      qc.invalidateQueries({ queryKey: ["pending-attendance-alerts"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao atualizar status da consulta");
     }

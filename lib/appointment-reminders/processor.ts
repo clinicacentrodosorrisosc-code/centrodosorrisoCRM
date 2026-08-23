@@ -260,8 +260,15 @@ export async function processAppointmentReminders(
           const offsetMs = schedule.offset_hours * 60 * 60 * 1000;
           const sendAt = new Date(agendamento.getTime() - offsetMs);
 
+          // Janela máxima de disparo: de 5 minutos antes até 60 minutos após o horário ideal
+          const MAX_LATE_WINDOW_MS = 60 * 60 * 1000; // 1 hora
+
           // Não envia se ainda não chegou o momento (com tolerância de 5 min)
           if (sendAt.getTime() > now.getTime() + CRON_WINDOW_MS) continue;
+
+          // Não envia se a janela de disparo já passou há mais de 1 hora (evita disparar lembrete de 24h em agendamentos criados de última hora)
+          if (now.getTime() > sendAt.getTime() + MAX_LATE_WINDOW_MS) continue;
+
           // Não envia se já passou da hora do próprio agendamento
           if (now.getTime() > agendamento.getTime()) continue;
 

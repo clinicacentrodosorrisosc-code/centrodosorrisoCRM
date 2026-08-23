@@ -75,7 +75,7 @@ export function useAttendanceAlerts() {
 
       // Atualiza caches do React Query
       qc.invalidateQueries({ queryKey: ["pending-attendance-alerts"] });
-      qc.invalidateQueries({ queryKey: ["kanban"] });
+      qc.invalidateQueries({ queryKey: ["board"] });
       qc.invalidateQueries({ queryKey: ["leads"] });
       qc.invalidateQueries({ queryKey: ["lead", vars.leadId] });
     },
