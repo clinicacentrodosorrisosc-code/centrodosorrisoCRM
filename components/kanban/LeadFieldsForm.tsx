@@ -208,8 +208,21 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
         } else {
           toast.error("Lead marcado como Não Compareceu (Falta registrada)");
         }
-      } else if (status === "compareceu") {
-        toast.success("Presença confirmada! Paciente compareceu à avaliação.");
+      } else if (status === "compareceu" && boardData?.stages) {
+        const orcStage = boardData.stages.find((s) =>
+          /or[çc]amento|em\s*negocia[cç][aã]o|proposta/i.test(s.name) && !s.is_won && !s.is_lost,
+        );
+        if (orcStage && orcStage.id !== lead.stage_id) {
+          await move.mutateAsync({
+            leadId: lead.id,
+            stageId: orcStage.id,
+            positionInStage: 1000,
+            expectedUpdatedAt: lead.updated_at,
+          });
+          toast.success(`Presença confirmada! Lead movido automaticamente para "${orcStage.name}".`);
+        } else {
+          toast.success("Presença confirmada! Paciente compareceu à avaliação.");
+        }
       } else if (status === "remarcado") {
         form.setValue("agendamento_status", "agendado");
         toast.info("Informe a nova data e horário abaixo para concluir o reagendamento.");

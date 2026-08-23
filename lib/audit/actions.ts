@@ -330,6 +330,7 @@ export const AUDIT_ACTIONS = [
   "pipeline_reminder.config_saved",
   "pipeline_reminder.config_deleted",
   "pipeline_reminder.sent",
+  "lead.attendance_updated",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */
