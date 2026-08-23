@@ -107,16 +107,21 @@ async function handle(req: NextRequest): Promise<Response> {
     await admin.from("followup_flow_pointers").delete().eq("id", p.id);
   }
 
-  // 5. Construir Grafo Limpo (Trigger -> Wait 2h antes -> Send Template -> End)
+  // 5. Construir Grafo Limpo e 100% aderente ao flowGraphSchema
   const graph = {
     nodes: [
       {
         id: "node_trigger",
         type: "trigger" as const,
+        label: "Início: Mudança de Etapa",
+        position: { x: 250, y: 50 },
+        config: {},
       },
       {
         id: "node_wait_2h",
         type: "wait" as const,
+        label: "Aguardar 2h antes da Consulta",
+        position: { x: 250, y: 160 },
         config: {
           mode: "before_appointment" as const,
           offset_hours: 2,
@@ -125,6 +130,8 @@ async function handle(req: NextRequest): Promise<Response> {
       {
         id: "node_action_msg",
         type: "action" as const,
+        label: "Enviar Lembrete WhatsApp",
+        position: { x: 250, y: 280 },
         config: {
           mode: "template" as const,
           template_id: templateName,
@@ -133,8 +140,10 @@ async function handle(req: NextRequest): Promise<Response> {
       {
         id: "node_end",
         type: "end" as const,
+        label: "Fim do Fluxo",
+        position: { x: 250, y: 400 },
         config: {
-          outcome: "completed" as const,
+          outcome: "converted" as const,
         },
       },
     ],
@@ -163,21 +172,7 @@ async function handle(req: NextRequest): Promise<Response> {
     ],
   };
 
-  // 6. Criar nova versão
-  const { data: newVersion, error: verErr } = await admin
-    .from("followup_flow_versions")
-    .insert({
-      organization_id: orgId,
-      graph,
-    })
-    .select("id")
-    .single();
-
-  if (verErr || !newVersion) {
-    return fail("internal_error", verErr?.message ?? "Falha ao criar versão do fluxo.", 500, { requestId });
-  }
-
-  // 7. Criar novo Pointer Ativo
+  // 6. Criar novo Pointer Ativo
   const flowName = "Lembrete de Consulta (2h antes)";
   const { data: newPointer, error: ptrErr } = await admin
     .from("followup_flow_pointers")
@@ -185,7 +180,6 @@ async function handle(req: NextRequest): Promise<Response> {
       organization_id: orgId,
       name: flowName,
       status: "active",
-      active_version_id: newVersion.id,
       draft_graph: graph,
       handoff_policy: "pause",
       trigger_config: {
@@ -202,6 +196,27 @@ async function handle(req: NextRequest): Promise<Response> {
   if (ptrErr || !newPointer) {
     return fail("internal_error", ptrErr?.message ?? "Falha ao criar ponteiro do fluxo.", 500, { requestId });
   }
+
+  // 7. Criar nova versão vinculada ao pointer
+  const { data: newVersion, error: verErr } = await admin
+    .from("followup_flow_versions")
+    .insert({
+      organization_id: orgId,
+      pointer_id: newPointer.id,
+      graph,
+    })
+    .select("id")
+    .single();
+
+  if (verErr || !newVersion) {
+    return fail("internal_error", verErr?.message ?? "Falha ao criar versão do fluxo.", 500, { requestId });
+  }
+
+  await admin
+    .from("followup_flow_pointers")
+    .update({ active_version_id: newVersion.id })
+    .eq("id", newPointer.id);
+
 
   // 8. Vincular aos agentes ativos da organização
   const { data: agents } = await admin
