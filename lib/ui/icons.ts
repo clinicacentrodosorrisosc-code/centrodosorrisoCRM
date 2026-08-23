@@ -126,4 +126,6 @@ export {
   CalendarBlank,
   Timer,
   UserList,
+  ListPlus,
+  Sliders,
 } from "@phosphor-icons/react/dist/ssr";

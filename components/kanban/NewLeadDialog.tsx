@@ -28,6 +28,7 @@ import type { Stage } from "@/lib/kanban/types";
 import type { Contact } from "@/lib/types/contacts";
 import { createLeadSchema, type CreateLeadInput } from "@/lib/schemas/leads";
 import { parseReaisToCents } from "@/lib/money";
+import { useCadastros } from "@/hooks/settings/useCadastros";
 import { EcoDoValor } from "./EcoDoValor";
 import {
   Users,
@@ -69,6 +70,7 @@ function defaultStageId(stages: Stage[]): string {
 export function NewLeadDialog({ open, onOpenChange, pipelineId, stages, contactId }: Props) {
   const create = useCreateLead(pipelineId);
   const createContact = useCreateContact();
+  const { procedimentos: listaProcedimentos, fontes: listaFontes } = useCadastros();
   const initialStage = useMemo(() => defaultStageId(stages), [stages]);
 
   // Contato selecionado
@@ -453,15 +455,9 @@ export function NewLeadDialog({ open, onOpenChange, pipelineId, stages, contactI
                 {...form.register("source")}
               />
               <datalist id="new-lead-fontes">
-                <option value="WhatsApp" />
-                <option value="Instagram" />
-                <option value="Facebook Ads" />
-                <option value="Google Ads" />
-                <option value="Indicação de Paciente" />
-                <option value="Tráfego Pago" />
-                <option value="Site / Landing Page" />
-                <option value="Passante / Balcão" />
-                <option value="Outro" />
+                {listaFontes.map((f) => (
+                  <option key={f} value={f} />
+                ))}
               </datalist>
             </div>
             <div className="space-y-1.5">
@@ -476,16 +472,9 @@ export function NewLeadDialog({ open, onOpenChange, pipelineId, stages, contactI
                 {...form.register("procedimento")}
               />
               <datalist id="new-lead-procedimentos">
-                <option value="Clareamento Dental (Laser / Caseiro)" />
-                <option value="Alinhadores Invisíveis / Ortodontia" />
-                <option value="Implantes Dentários & Prótese" />
-                <option value="Facetas / Lentes de Contato Dental" />
-                <option value="Limpeza / Profilaxia & Avaliação" />
-                <option value="Tratamento de Canal (Endodontia)" />
-                <option value="Restauração Estética" />
-                <option value="Harmonização Facial / Botox" />
-                <option value="Cirurgia / Extração de Siso" />
-                <option value="Odontopediatria" />
+                {listaProcedimentos.map((p) => (
+                  <option key={p} value={p} />
+                ))}
               </datalist>
             </div>
           </div>

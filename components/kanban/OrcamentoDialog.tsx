@@ -34,6 +34,7 @@ import {
   recalcularOrcamento,
 } from "@/lib/types/orcamento";
 import { parseReaisToCents } from "@/lib/money";
+import { useCadastros } from "@/hooks/settings/useCadastros";
 import { PROCEDIMENTOS_SUGERIDOS } from "./LeadFieldsForm";
 import {
   Plus,
@@ -71,6 +72,7 @@ export function OrcamentoDialog({ open, onOpenChange, lead, pipelineId }: Props)
   const move = useMoveCard(pipelineId);
   const { data: boardData } = useBoard(pipelineId);
   const qc = useQueryClient();
+  const { procedimentos: listaProcedimentos } = useCadastros();
 
   // Carrega orçamento existente ou inicializa padrão
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
@@ -451,7 +453,7 @@ export function OrcamentoDialog({ open, onOpenChange, lead, pipelineId }: Props)
                         className="h-8 text-xs"
                       />
                       <datalist id="procs-orcamento">
-                        {PROCEDIMENTOS_SUGERIDOS.map((p) => (
+                        {listaProcedimentos.map((p) => (
                           <option key={p} value={p} />
                         ))}
                       </datalist>

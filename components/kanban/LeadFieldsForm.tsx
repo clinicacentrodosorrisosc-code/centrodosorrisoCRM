@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useEditLead } from "@/hooks/kanban/useUpdateLead";
 import { useMoveCard } from "@/hooks/kanban/useMoveCard";
 import { useBoard } from "@/hooks/kanban/useBoard";
+import { useCadastros } from "@/hooks/settings/useCadastros";
 import type { Lead } from "@/lib/types/leads";
 import type { OrcamentoLead } from "@/lib/types/orcamento";
 import { updateLeadSchema, type UpdateLeadInput } from "@/lib/schemas/leads";
@@ -119,6 +120,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
   const initialAgendamentoStatus = (customFields.agendamento_status as FormShape["agendamento_status"]) ?? "agendado";
 
   const qc = useQueryClient();
+  const { procedimentos: listaProcedimentos, fontes: listaFontes } = useCadastros();
 
   const form = useForm<FormShape>({
     defaultValues: {
@@ -571,7 +573,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
               {...form.register("source")}
             />
             <datalist id="fontes-list">
-              {FONTES_SUGERIDAS.map((f) => (
+              {listaFontes.map((f) => (
                 <option key={f} value={f} />
               ))}
             </datalist>
@@ -590,7 +592,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
               {...form.register("procedimento")}
             />
             <datalist id="procedimentos-list">
-              {PROCEDIMENTOS_SUGERIDOS.map((p) => (
+              {listaProcedimentos.map((p) => (
                 <option key={p} value={p} />
               ))}
             </datalist>

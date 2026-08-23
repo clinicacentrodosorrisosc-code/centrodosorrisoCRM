@@ -27,6 +27,7 @@ import type { Lead } from "@/lib/types/leads";
 import type { UpdateLeadInput } from "@/lib/schemas/leads";
 import type { Pipeline, Stage } from "@/lib/kanban/types";
 import type { OrcamentoItem, OrcamentoLead } from "@/lib/types/orcamento";
+import { useCadastros } from "@/hooks/settings/useCadastros";
 import { PROCEDIMENTOS_SUGERIDOS } from "./LeadFieldsForm";
 import {
   CalendarBlank,
@@ -115,6 +116,7 @@ export function KanbanBoard({
   const queryResult = useBoard(useExternal ? null : pipelineId);
   const moveCard = useMoveCard(pipelineId);
   const editLead = useEditLead(pipelineId);
+  const { procedimentos: listaProcedimentos } = useCadastros();
   const { data: members } = useAssignableMembers(true);
   const ownerNames = useMemo(
     () => new Map((members ?? []).map((m) => [m.user_id, m.full_name])),
@@ -717,7 +719,7 @@ export function KanbanBoard({
                             className="h-8 text-xs bg-background"
                           />
                           <datalist id={`sugestoes-${item.id}`}>
-                            {PROCEDIMENTOS_SUGERIDOS.map((p) => (
+                            {listaProcedimentos.map((p) => (
                               <option key={p} value={p} />
                             ))}
                           </datalist>

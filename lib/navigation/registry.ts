@@ -22,6 +22,7 @@ import {
   Key,
   Lightbulb,
   ListChecks,
+  ListPlus,
   Lock,
   Palette,
   Plugs,
@@ -470,6 +471,15 @@ export const NAV_DESTINATIONS: NavDestination[] = [
     group: "organizacao",
     section: "Sua empresa",
     minRole: "admin",
+  },
+  {
+    href: "/app/settings/cadastros",
+    label: "Procedimentos, Tags & Fontes",
+    description: "Catálogo de procedimentos da clínica, tags dos cards e fontes de captação de pacientes.",
+    icon: ListPlus,
+    group: "organizacao",
+    section: "Sua empresa",
+    minRole: "agent",
   },
   {
     href: "/app/settings/marca",
