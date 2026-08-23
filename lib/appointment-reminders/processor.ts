@@ -15,6 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendTemplateForSession } from "@/lib/channels/meta/send-template-for-session";
 import { sendWAHA } from "@/lib/waha/send";
+import { getAdapter, resolveSessionRef, type ChannelSessionRef, type ChannelProvider } from "@/lib/channels";
 import { logger } from "@/lib/logger";
 import { audit } from "@/lib/audit";
 
@@ -356,58 +357,94 @@ export async function processAppointmentReminders(
             }
           }
 
-          // Busca a sessão de canal ativa da organização para o WAHA
+          // Busca a sessão de canal ativa da organização
           const { data: channelSession } = await admin
             .from("channel_sessions")
-            .select("id, waha_session_name, provider, status, phone_number")
+            .select(`id, status, provider, waha_session_name, meta_phone_number_id, zernio_account_id`)
             .eq("organization_id", config.organization_id)
             .is("archived_at", null)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
 
-          const sessionName = channelSession?.waha_session_name || "default";
-
           let sentSuccessfully = false;
           let externalId: string | null = null;
           const messageBody = buildInterpolatedText(metaTemplate?.components, values, schedule.template_name);
 
-          // 1. Tenta envio oficial pela Meta Cloud API
-          try {
-            externalId = await sendTemplateForSession(admin, {
-              organizationId: config.organization_id,
-              to: rawPhone,
-              name: schedule.template_name,
-              language: schedule.template_language || "pt_BR",
-              values,
-            });
-            sentSuccessfully = true;
-          } catch (metaErr) {
-            logger.warn("[appointment-reminders] Envio Meta Cloud API falhou, tentando fallback WAHA", {
-              lead_id: lead.id,
-              template: schedule.template_name,
-              error: String(metaErr),
-            });
-
-            // 2. Fallback WAHA
+          if (channelSession) {
             try {
-              const wahaRes = await sendWAHA({
-                sessionName,
-                chatId: `${rawPhone}@c.us`,
-                text: messageBody,
-              });
-              if (wahaRes) {
+              const sessionRef = resolveSessionRef(channelSession as ChannelSessionRef);
+              const adapter = getAdapter(channelSession.provider as ChannelProvider);
+
+              if (schedule.template_name && adapter.sendTemplate) {
+                const res = await adapter.sendTemplate({
+                  sessionRef,
+                  to: rawPhone,
+                  name: schedule.template_name,
+                  language: schedule.template_language || "pt_BR",
+                  values,
+                });
+                externalId = res.externalId;
                 sentSuccessfully = true;
-                externalId = typeof wahaRes === "object" && wahaRes !== null && "id" in wahaRes
-                  ? String((wahaRes as { id: string }).id)
-                  : null;
+              } else if (schedule.template_name && channelSession.provider === "meta_cloud") {
+                externalId = await sendTemplateForSession(admin, {
+                  organizationId: config.organization_id,
+                  to: rawPhone,
+                  name: schedule.template_name,
+                  language: schedule.template_language || "pt_BR",
+                  values,
+                });
+                sentSuccessfully = true;
+              } else {
+                // Envia como mensagem de texto formatada pelo canal ativo
+                const res = await adapter.send({
+                  sessionRef,
+                  to: `${rawPhone}@c.us`,
+                  kind: "text",
+                  body: messageBody,
+                });
+                externalId = res.externalId;
+                sentSuccessfully = true;
               }
-            } catch (wahaErr) {
-              logger.error("[appointment-reminders] Fallback WAHA também falhou", {
+            } catch (chanErr) {
+              logger.warn("[appointment-reminders] Envio via adapter do canal falhou, tentando fallback direto", {
                 lead_id: lead.id,
-                session_name: sessionName,
-                error: String(wahaErr),
+                error: String(chanErr),
               });
+            }
+          }
+
+          // Fallback final direto se o adapter não foi executado ou falhou
+          if (!sentSuccessfully) {
+            try {
+              externalId = await sendTemplateForSession(admin, {
+                organizationId: config.organization_id,
+                to: rawPhone,
+                name: schedule.template_name,
+                language: schedule.template_language || "pt_BR",
+                values,
+              });
+              sentSuccessfully = true;
+            } catch {
+              try {
+                const sessionName = channelSession?.waha_session_name || "default";
+                const wahaRes = await sendWAHA({
+                  sessionName,
+                  chatId: `${rawPhone}@c.us`,
+                  text: messageBody,
+                });
+                if (wahaRes) {
+                  sentSuccessfully = true;
+                  externalId = typeof wahaRes === "object" && wahaRes !== null && "id" in wahaRes
+                    ? String((wahaRes as { id: string }).id)
+                    : null;
+                }
+              } catch (wahaErr) {
+                logger.error("[appointment-reminders] Todos os transportes falharam", {
+                  lead_id: lead.id,
+                  error: String(wahaErr),
+                });
+              }
             }
           }
 

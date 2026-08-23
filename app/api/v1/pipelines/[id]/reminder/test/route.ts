@@ -10,6 +10,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendTemplateForSession } from "@/lib/channels/meta/send-template-for-session";
 import { sendWAHA } from "@/lib/waha/send";
+import { getAdapter, resolveSessionRef, type ChannelSessionRef, type ChannelProvider } from "@/lib/channels";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -339,36 +340,79 @@ export async function POST(
 
       const { data: channelSession } = await admin
         .from("channel_sessions")
-        .select("id, waha_session_name, provider, status, phone_number")
+        .select(`id, status, provider, waha_session_name, meta_phone_number_id, zernio_account_id`)
         .eq("organization_id", org.orgId)
         .is("archived_at", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      const sessionName = channelSession?.waha_session_name || "default";
-
       let sentSuccessfully = false;
-      try {
-        await sendTemplateForSession(admin, {
-          organizationId: org.orgId,
-          to: rawPhone,
-          name: schedule.template_name,
-          language: schedule.template_language || "pt_BR",
-          values,
-        });
-        sentSuccessfully = true;
-      } catch (metaErr) {
-        logger.warn("[test-reminders] Meta API falhou, tentando WAHA", { error: String(metaErr) });
+      let lastErrorMessage = "";
+
+      if (channelSession) {
         try {
-          const wahaRes = await sendWAHA({
-            sessionName,
-            chatId: `${rawPhone}@c.us`,
-            text: messageBody,
+          const sessionRef = resolveSessionRef(channelSession as ChannelSessionRef);
+          const adapter = getAdapter(channelSession.provider as ChannelProvider);
+
+          if (schedule.template_name && adapter.sendTemplate) {
+            await adapter.sendTemplate({
+              sessionRef,
+              to: rawPhone,
+              name: schedule.template_name,
+              language: schedule.template_language || "pt_BR",
+              values,
+            });
+            sentSuccessfully = true;
+          } else if (schedule.template_name && channelSession.provider === "meta_cloud") {
+            await sendTemplateForSession(admin, {
+              organizationId: org.orgId,
+              to: rawPhone,
+              name: schedule.template_name,
+              language: schedule.template_language || "pt_BR",
+              values,
+            });
+            sentSuccessfully = true;
+          } else {
+            await adapter.send({
+              sessionRef,
+              to: `${rawPhone}@c.us`,
+              kind: "text",
+              body: messageBody,
+            });
+            sentSuccessfully = true;
+          }
+        } catch (chanErr) {
+          lastErrorMessage = chanErr instanceof Error ? chanErr.message : String(chanErr);
+          logger.warn("[test-reminders] Envio via adapter falhou", { error: lastErrorMessage });
+        }
+      } else {
+        lastErrorMessage = "Nenhum canal de WhatsApp ativo encontrado.";
+      }
+
+      // Fallback final
+      if (!sentSuccessfully) {
+        try {
+          await sendTemplateForSession(admin, {
+            organizationId: org.orgId,
+            to: rawPhone,
+            name: schedule.template_name,
+            language: schedule.template_language || "pt_BR",
+            values,
           });
-          if (wahaRes) sentSuccessfully = true;
-        } catch (wahaErr) {
-          logger.error("[test-reminders] WAHA falhou", { error: String(wahaErr) });
+          sentSuccessfully = true;
+        } catch (mErr) {
+          try {
+            const sessionName = channelSession?.waha_session_name || "default";
+            const wahaRes = await sendWAHA({
+              sessionName,
+              chatId: `${rawPhone}@c.us`,
+              text: messageBody,
+            });
+            if (wahaRes) sentSuccessfully = true;
+          } catch (wErr) {
+            lastErrorMessage = wErr instanceof Error ? wErr.message : (mErr instanceof Error ? mErr.message : lastErrorMessage);
+          }
         }
       }
 
@@ -399,7 +443,7 @@ export async function POST(
           agendamento: agendamentoFormatted,
           phone: rawPhone,
           status: "send_failed",
-          diagnostico: "Falha ao enviar mensagem pelo canal WhatsApp.",
+          diagnostico: `Falha ao enviar: ${lastErrorMessage || "Canal de WhatsApp desconectado ou indisponível"}`,
         });
       }
     }
