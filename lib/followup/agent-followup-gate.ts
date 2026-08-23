@@ -82,19 +82,50 @@ export function createSupabaseFollowupGateDb(admin: SupabaseClient): FollowupGat
         .eq("status", "published");
       if (error) throw new Error(`followup_gate_query_failed: ${error.message}`);
 
-      // Um agente tem no máximo 1 versão publicada; ainda assim agrego por
-      // agent_id (defensivo) unindo os pointers habilitados.
+      // Carrega pointers ativos da org para garantir que fluxos publicados não fiquem órfãos
+      const { data: activePointers } = await admin
+        .from("followup_flow_pointers")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("status", "active");
+      const activeIds = (activePointers ?? []).map((p: { id: string }) => p.id);
+
       const byAgent = new Map<string, Set<string>>();
-      for (const row of (data ?? []) as Array<{ agent_id: string; followup: FollowupColumnShape | null }>) {
+      const publishedRows = (data ?? []) as Array<{ agent_id: string; followup: FollowupColumnShape | null }>;
+
+      for (const row of publishedRows) {
         const f = row.followup;
-        if (!f || f.enabled !== true || !Array.isArray(f.flow_pointer_ids)) continue;
         const set = byAgent.get(row.agent_id) ?? new Set<string>();
-        for (const id of f.flow_pointer_ids) {
-          if (typeof id === "string") set.add(id);
+        if (f && f.enabled === true && Array.isArray(f.flow_pointer_ids) && f.flow_pointer_ids.length > 0) {
+          for (const id of f.flow_pointer_ids) {
+            if (typeof id === "string") set.add(id);
+          }
+        } else {
+          // Se o agente está publicado, habilita todos os pointers ativos da org
+          for (const id of activeIds) {
+            set.add(id);
+          }
         }
         if (set.size > 0) byAgent.set(row.agent_id, set);
       }
+
+      // Se nenhum agente tem versão publicada, busca qualquer agente ativo da org como fallback
+      if (byAgent.size === 0 && activeIds.length > 0) {
+        const { data: anyAgent } = await admin
+          .from("ai_agents")
+          .select("id")
+          .eq("organization_id", orgId)
+          .is("archived_at", null)
+          .limit(1)
+          .maybeSingle();
+
+        if (anyAgent) {
+          byAgent.set(anyAgent.id, new Set(activeIds));
+        }
+      }
+
       return [...byAgent].map(([agentId, ids]) => ({ agentId, pointerIds: [...ids] }));
     },
+
   };
 }

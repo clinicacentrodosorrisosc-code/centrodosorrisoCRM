@@ -1,11 +1,14 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { FlowArrow, Plus } from "@/lib/ui/icons";
+import { FlowArrow, Plus, Clock, ArrowsClockwise } from "@/lib/ui/icons";
 import { useFollowupFlows, type FollowupFlowPointerRow } from "@/hooks/followup/useFollowupFlows";
+import { apiClient } from "@/lib/api/client";
 import { FlowStatusBadge } from "./FlowStatusBadge";
 import { NewFlowDialog } from "./NewFlowDialog";
 
@@ -23,15 +26,42 @@ function formatUpdatedAt(iso: string): string {
 }
 
 export function FlowsList({ initialData, canWrite }: Props) {
+  const qc = useQueryClient();
   const { data } = useFollowupFlows({ initialData });
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isRecreating, setIsRecreating] = useState(false);
 
   const flows = data ?? [];
 
-  const newFlowButton = (
-    <Button onClick={() => setDialogOpen(true)}>
-      <Plus size={14} aria-hidden className="mr-2" /> Novo fluxo
-    </Button>
+  const handleRecreate2hReminder = async () => {
+    setIsRecreating(true);
+    try {
+      const res = await apiClient.post<{ success: boolean; message: string }>("/api/v1/ai/followup-flows/recreate-2h-reminder", {});
+      toast.success(res.message || "Fluxo de lembrete de 2h antes recriado e publicado com sucesso!");
+      qc.invalidateQueries({ queryKey: ["followup_flows"] });
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err?.message || "Falha ao recriar fluxo.");
+    } finally {
+      setIsRecreating(false);
+    }
+  };
+
+  const actionButtons = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <Button
+        variant="outline"
+        onClick={handleRecreate2hReminder}
+        disabled={isRecreating}
+        className="gap-1.5"
+      >
+        <ArrowsClockwise size={14} className={isRecreating ? "animate-spin" : ""} />
+        {isRecreating ? "Criando fluxo..." : "Criar Lembrete (2h antes)"}
+      </Button>
+      <Button onClick={() => setDialogOpen(true)}>
+        <Plus size={14} aria-hidden className="mr-2" /> Novo fluxo
+      </Button>
+    </div>
   );
 
   if (flows.length === 0) {
@@ -44,7 +74,7 @@ export function FlowsList({ initialData, canWrite }: Props) {
             Follow-ups reengajam contatos automaticamente após silêncio, mudança de
             etapa ou fim de conversa — sem depender de alguém lembrar de mandar mensagem.
           </p>
-          {canWrite && <div className="mt-1">{newFlowButton}</div>}
+          {canWrite && <div className="mt-1">{actionButtons}</div>}
         </Card>
         {canWrite && <NewFlowDialog open={dialogOpen} onOpenChange={setDialogOpen} />}
       </>
@@ -54,8 +84,9 @@ export function FlowsList({ initialData, canWrite }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {canWrite && (
-        <div className="flex justify-end">{newFlowButton}</div>
+        <div className="flex justify-end">{actionButtons}</div>
       )}
+
 
       <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {flows.map((flow) => (

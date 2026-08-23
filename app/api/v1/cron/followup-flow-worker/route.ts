@@ -66,6 +66,15 @@ async function handle(req: NextRequest): Promise<Response> {
 
   const admin = createAdminClient();
 
+  if (req.nextUrl.searchParams.get("recreate_flow") === "1") {
+    try {
+      const { GET: recreateHandler } = await import("@/app/api/v1/ai/followup-flows/recreate-2h-reminder/route");
+      await recreateHandler(req);
+    } catch (recreateErr) {
+      logger.error("[followup-flow-worker.cron] recreate_flow failed", { error: String(recreateErr) });
+    }
+  }
+
   // 1. Drena event_log para registrar novos gatilhos (ex: lead.stage_changed)
   try {
     const { drainEventLog } = await import("@/lib/event-log/drain");
@@ -75,6 +84,7 @@ async function handle(req: NextRequest): Promise<Response> {
   } catch (drainErr) {
     logger.warn("[followup-flow-worker.cron] drainEventLog threw (prosseguindo)", { error: String(drainErr) });
   }
+
 
   // 2. Executa o tick do motor de follow-up
   const newlyEnqueuedJobs: FollowupJobRequest[] = [];
