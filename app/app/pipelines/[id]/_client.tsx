@@ -24,7 +24,8 @@ import { FilterBar } from "@/components/kanban/FilterBar";
 import { BulkActionBar } from "@/components/kanban/BulkActionBar";
 import { NewLeadDialog } from "@/components/kanban/NewLeadDialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "@/lib/ui/icons";
+import { Bell, Plus } from "@/lib/ui/icons";
+import { ReminderConfigDialog } from "@/components/kanban/ReminderConfigDialog";
 import type { LeadFilters } from "@/lib/kanban/filters";
 import { applyFilters, filtersFromParams, filtersToParams } from "@/lib/kanban/filters";
 
@@ -49,6 +50,7 @@ export function PipelinePageClient({
   );
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [newOpen, setNewOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
 
   const filteredLeads = data ? applyFilters(data.leads, filters) : [];
 
@@ -78,9 +80,19 @@ export function PipelinePageClient({
         <h1 className="text-2xl font-semibold tracking-tight">
           {data?.pipeline.name ?? initialName}
         </h1>
-        <Button onClick={() => setNewOpen(true)} disabled={!data}>
-          <Plus size={16} className="mr-2" /> Novo Lead
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setReminderOpen(true)}
+            disabled={!data}
+            aria-label="Configurar lembrete de agendamento"
+          >
+            <Bell size={16} className="mr-2" /> Lembrete de Consulta
+          </Button>
+          <Button onClick={() => setNewOpen(true)} disabled={!data}>
+            <Plus size={16} className="mr-2" /> Novo Lead
+          </Button>
+        </div>
       </header>
       {data && (
         <NewLeadDialog
@@ -116,6 +128,13 @@ export function PipelinePageClient({
         stages={data?.stages ?? []}
         pipelineId={pipelineId}
         onClear={() => setSelectedIds([])}
+      />
+      {/* Dialog de configuração de lembrete — partilhado com o 3-dots do card */}
+      <ReminderConfigDialog
+        open={reminderOpen}
+        onOpenChange={setReminderOpen}
+        pipelineId={pipelineId}
+        stages={data?.stages ?? []}
       />
     </div>
   );

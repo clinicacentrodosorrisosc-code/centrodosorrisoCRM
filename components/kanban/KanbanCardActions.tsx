@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { DotsThree, PencilSimple, Trash, Users } from "@/lib/ui/icons";
+import { Bell, DotsThree, PencilSimple, Trash, Users } from "@/lib/ui/icons";
 import { useWinLead, useEditLead } from "@/hooks/kanban/useUpdateLead";
 import { useAssignableMembers } from "@/hooks/inbox/useAssignableMembers";
 import { useAssignableAgents } from "@/hooks/kanban/useAssignableAgents";
@@ -19,6 +19,7 @@ import { usePermission } from "@/hooks/auth/AuthProvider";
 import { LoseLeadDialog } from "./LoseLeadDialog";
 import { EditLeadDialog } from "./EditLeadDialog";
 import { DeleteLeadDialog } from "./DeleteLeadDialog";
+import { ReminderConfigDialog } from "./ReminderConfigDialog";
 import type { Lead } from "@/lib/types/leads";
 
 interface KanbanCardActionsProps {
@@ -30,6 +31,7 @@ export function KanbanCardActions({ lead, pipelineId }: KanbanCardActionsProps) 
   const [loseOpen, setLoseOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
   const winMutation = useWinLead(pipelineId);
   const editMutation = useEditLead(pipelineId);
   // spec 13 §4: escrita no funil é agent+ — viewer não reatribui (a rota
@@ -143,6 +145,14 @@ export function KanbanCardActions({ lead, pipelineId }: KanbanCardActionsProps) 
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
+            onSelect={() => {
+              setReminderOpen(true);
+            }}
+          >
+            <Bell size={14} className="mr-2" /> Lembrete de Consulta
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
             className="text-destructive focus:bg-destructive/10 focus:text-destructive"
             onSelect={() => {
               setDeleteOpen(true);
@@ -171,6 +181,12 @@ export function KanbanCardActions({ lead, pipelineId }: KanbanCardActionsProps) 
         leadId={lead.id}
         leadTitle={lead.title}
         pipelineId={pipelineId}
+      />
+      <ReminderConfigDialog
+        open={reminderOpen}
+        onOpenChange={setReminderOpen}
+        pipelineId={pipelineId}
+        stages={[]} // As etapas são carregadas dentro do dialog
       />
     </>
   );

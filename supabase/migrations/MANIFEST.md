@@ -213,3 +213,4 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 - **Integrations**: tenant_integrations, orders, nuvemshop_products
 - **Compliance**: lgpd_requests
 - **Ops**: incidents
+- **Lembretes** (0161–0162): pipeline_reminder_configs, pipeline_reminder_sent_log

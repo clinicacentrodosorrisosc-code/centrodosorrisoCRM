@@ -108,12 +108,14 @@ async function handle(req: NextRequest): Promise<Response> {
 
   // 3. Se algum job de mensagem/template foi gerado, executa-o imediatamente
   for (const job of newlyEnqueuedJobs) {
-    if (job.payload && (job.payload as any).purpose === "send_message" && (job.payload as any).template_id) {
+    const jobPayload = job.payload as Record<string, unknown> | null;
+    if (jobPayload && jobPayload.purpose === "send_message" && jobPayload.template_id) {
       try {
         const { createSupabaseTurnBridgeClient, completeTurnForEnrollment } = await import("@/lib/followup/turn-bridge");
         const { createFollowupTurnHandler } = await import("@/lib/agent-engine/agent/followup-turn");
         const bridgeClient = createSupabaseTurnBridgeClient(admin);
 
+        /* eslint-disable @typescript-eslint/no-explicit-any */
         const completeFollowupTurn = async (_pool: any, input: any) => {
           await completeTurnForEnrollment(
             bridgeClient,
@@ -154,6 +156,7 @@ async function handle(req: NextRequest): Promise<Response> {
         };
 
         await handler(jobRow as any, fakePool as any, { workerId: "cron-worker" });
+        /* eslint-enable @typescript-eslint/no-explicit-any */
       } catch (handlerErr) {
         logger.error("[followup-flow-worker.cron] Erro ao disparar mensagem de template:", { error: String(handlerErr) });
       }
@@ -216,6 +219,28 @@ async function handle(req: NextRequest): Promise<Response> {
     // resultado de runFollowupTick, que rodou (e foi auditado) antes disto.
     const detail = err instanceof Error ? err.message : String(err);
     logger.error("[followup-flow-worker.cron] runSilenceSweep threw", { error: detail, requestId });
+  }
+
+  // 5. Processa lembretes de agendamento (pipeline_reminder_configs)
+  // Isolado: falha aqui NUNCA impede a resposta do tick principal.
+  try {
+    const { processAppointmentReminders } = await import("@/lib/appointment-reminders/processor");
+    const reminderSummary = await processAppointmentReminders(admin);
+    if (reminderSummary.sent > 0 || reminderSummary.errors > 0) {
+      void audit({
+        action: "pipeline_reminder.sent",
+        organizationId: null,
+        bypassedRls: true,
+        metadata: { ...reminderSummary },
+        requestId,
+      });
+    }
+    if (reminderSummary.sent > 0) {
+      logger.info("[followup-flow-worker.cron] Lembretes enviados", { ...reminderSummary });
+    }
+  } catch (reminderErr) {
+    const detail = reminderErr instanceof Error ? reminderErr.message : String(reminderErr);
+    logger.error("[followup-flow-worker.cron] processAppointmentReminders threw", { error: detail, requestId });
   }
 
   return ok(summary, { requestId });

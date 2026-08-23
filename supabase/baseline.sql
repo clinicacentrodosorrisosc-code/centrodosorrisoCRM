@@ -13534,3 +13534,79 @@ CREATE INDEX IF NOT EXISTS crm_tasks_org_status ON public.crm_tasks (organizatio
 CREATE INDEX IF NOT EXISTS crm_tasks_lead_id ON public.crm_tasks (lead_id) WHERE lead_id IS NOT NULL;
 
 notify pgrst, 'reload schema';
+
+-- ── 0161: pipeline_reminder_configs ─────────────────────────────────────────
+-- Apêndice idempotente — migration 20260823100000_0161_pipeline_reminder_configs.sql
+
+CREATE TABLE IF NOT EXISTS "public"."pipeline_reminder_configs" (
+  "id"                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  "organization_id"   uuid        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  "pipeline_id"       uuid        NOT NULL REFERENCES crm_pipelines(id) ON DELETE CASCADE,
+  "is_active"         boolean     NOT NULL DEFAULT true,
+  "offset_hours"      int         NOT NULL DEFAULT 2 CHECK (offset_hours IN (1, 2, 4, 24)),
+  "template_name"     text        NOT NULL,
+  "template_language" text        NOT NULL DEFAULT 'pt_BR',
+  "active_stage_ids"  uuid[]      NOT NULL DEFAULT '{}',
+  "created_at"        timestamptz NOT NULL DEFAULT now(),
+  "updated_at"        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE ("pipeline_id")
+);
+
+ALTER TABLE "public"."pipeline_reminder_configs" ENABLE ROW LEVEL SECURITY;
+
+DO $baseline_guard$ BEGIN
+IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'members can read pipeline reminder configs' AND polrelid = '"public"."pipeline_reminder_configs"'::regclass) THEN
+CREATE POLICY "members can read pipeline reminder configs" ON "public"."pipeline_reminder_configs" FOR SELECT USING ((organization_id IN ( SELECT fn_user_org_ids())));
+END IF; END $baseline_guard$;
+
+DO $baseline_guard$ BEGIN
+IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'managers can manage pipeline reminder configs' AND polrelid = '"public"."pipeline_reminder_configs"'::regclass) THEN
+CREATE POLICY "managers can manage pipeline reminder configs" ON "public"."pipeline_reminder_configs" FOR INSERT WITH CHECK ((organization_id IN ( SELECT fn_user_org_ids())) AND fn_role_at_least(organization_id, 'manager'));
+END IF; END $baseline_guard$;
+
+DO $baseline_guard$ BEGIN
+IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'managers can update pipeline reminder configs' AND polrelid = '"public"."pipeline_reminder_configs"'::regclass) THEN
+CREATE POLICY "managers can update pipeline reminder configs" ON "public"."pipeline_reminder_configs" FOR UPDATE USING ((organization_id IN ( SELECT fn_user_org_ids())) AND fn_role_at_least(organization_id, 'manager')) WITH CHECK ((organization_id IN ( SELECT fn_user_org_ids())) AND fn_role_at_least(organization_id, 'manager'));
+END IF; END $baseline_guard$;
+
+DO $baseline_guard$ BEGIN
+IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'managers can delete pipeline reminder configs' AND polrelid = '"public"."pipeline_reminder_configs"'::regclass) THEN
+CREATE POLICY "managers can delete pipeline reminder configs" ON "public"."pipeline_reminder_configs" FOR DELETE USING ((organization_id IN ( SELECT fn_user_org_ids())) AND fn_role_at_least(organization_id, 'manager'));
+END IF; END $baseline_guard$;
+
+GRANT SELECT ON TABLE "public"."pipeline_reminder_configs" TO "authenticated";
+GRANT ALL ON TABLE "public"."pipeline_reminder_configs" TO "service_role";
+REVOKE INSERT, UPDATE, DELETE ON TABLE "public"."pipeline_reminder_configs" FROM "authenticated";
+REVOKE ALL ON TABLE "public"."pipeline_reminder_configs" FROM "anon";
+
+CREATE INDEX IF NOT EXISTS pipeline_reminder_configs_org_idx ON public.pipeline_reminder_configs (organization_id);
+CREATE INDEX IF NOT EXISTS pipeline_reminder_configs_pipeline_idx ON public.pipeline_reminder_configs (pipeline_id) WHERE is_active = true;
+
+-- ── 0162: pipeline_reminder_sent_log ─────────────────────────────────────────
+-- Apêndice idempotente — migration 20260823100001_0162_pipeline_reminder_sent_log.sql
+
+CREATE TABLE IF NOT EXISTS "public"."pipeline_reminder_sent_log" (
+  "id"               uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  "organization_id"  uuid        NOT NULL,
+  "lead_id"          uuid        NOT NULL,
+  "config_id"        uuid        NOT NULL REFERENCES pipeline_reminder_configs(id) ON DELETE CASCADE,
+  "agendamento_data" text        NOT NULL,
+  "sent_at"          timestamptz NOT NULL DEFAULT now(),
+  UNIQUE ("lead_id", "config_id", "agendamento_data")
+);
+
+ALTER TABLE "public"."pipeline_reminder_sent_log" ENABLE ROW LEVEL SECURITY;
+
+DO $baseline_guard$ BEGIN
+IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'members can read their reminder log' AND polrelid = '"public"."pipeline_reminder_sent_log"'::regclass) THEN
+CREATE POLICY "members can read their reminder log" ON "public"."pipeline_reminder_sent_log" FOR SELECT USING ((organization_id IN ( SELECT fn_user_org_ids())));
+END IF; END $baseline_guard$;
+
+GRANT SELECT ON TABLE "public"."pipeline_reminder_sent_log" TO "authenticated";
+GRANT ALL ON TABLE "public"."pipeline_reminder_sent_log" TO "service_role";
+REVOKE INSERT, UPDATE, DELETE ON TABLE "public"."pipeline_reminder_sent_log" FROM "authenticated", "anon";
+
+CREATE INDEX IF NOT EXISTS reminder_sent_log_lead_idx ON public.pipeline_reminder_sent_log (lead_id, config_id);
+CREATE INDEX IF NOT EXISTS reminder_sent_log_sent_at_idx ON public.pipeline_reminder_sent_log (sent_at DESC);
+
+notify pgrst, 'reload schema';
