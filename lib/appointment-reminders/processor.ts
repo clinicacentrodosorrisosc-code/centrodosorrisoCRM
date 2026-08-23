@@ -86,7 +86,7 @@ function buildInterpolatedText(
   }
   const nome = values["1"] || values["body_1"] || "Paciente";
   const dataHora = values["2"] || values["body_2"] || "em breve";
-  return `Olá ${nome}! Lembramos do seu agendamento para ${dataHora}. ${fallbackTemplateName}`;
+  return `Olá ${nome}! Lembramos do seu agendamento para ${dataHora}. (${fallbackTemplateName})`;
 }
 
 /**
@@ -144,15 +144,13 @@ export async function processAppointmentReminders(
     if (schedules.length === 0) continue;
 
     try {
-      // 2. Busca leads elegíveis do pipeline
+      // 2. Busca leads do pipeline (sem filtros restritivos no JSONB para evitar bugs do PostgREST)
       const stageFilter = (config.active_stage_ids as string[]) ?? [];
 
       let leadsQuery = admin
         .from("crm_leads")
         .select("id, title, stage_id, custom_fields, contact_id")
         .eq("organization_id", config.organization_id)
-        .not("custom_fields->agendamento_data", "is", null)
-        .not("custom_fields->agendamento_data", "eq", "\"\"")
         .is("won_at", null)
         .is("lost_at", null);
 
@@ -180,15 +178,19 @@ export async function processAppointmentReminders(
       }
 
       for (const lead of leads ?? []) {
-        summary.leads_evaluated++;
         const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
         const dataStr = String(customFields.agendamento_data ?? "").trim();
         const horaStr = String(customFields.agendamento_hora ?? "").trim() || "09:00";
 
+        // Se o lead não tem data de agendamento preenchida, pula
+        if (!dataStr) continue;
+
+        summary.leads_evaluated++;
+
         const agendamento = parseAgendamento(dataStr, horaStr);
         if (!agendamento) continue; // data inválida
 
-        // Se o agendamento já passou há mais de 1 hora, não envia nada
+        // Se o agendamento já passou há mais de 1 hora, não envia
         if (agendamento.getTime() < now.getTime() - 60 * 60 * 1000) continue;
 
         // Itera sobre cada horário configurado (ex: 24h, 2h, etc.)
@@ -218,7 +220,7 @@ export async function processAppointmentReminders(
             continue;
           }
 
-          // Busca dados do contato (telefone, nome, sessão)
+          // Busca dados do contato (telefone correto: `phone_number`)
           let contactPhone: string | null = null;
           let contactName: string = lead.title || "Paciente";
           let contactId = lead.contact_id;
@@ -238,12 +240,12 @@ export async function processAppointmentReminders(
           if (!contactPhone) {
             const { data: leadWithContact } = await admin
               .from("crm_leads")
-              .select("contact_id, contacts(id, phone, display_name, name)")
+              .select("contact_id, contacts(id, phone_number, display_name, name)")
               .eq("id", lead.id)
               .maybeSingle();
 
-            const c = (leadWithContact as unknown as { contact_id?: string; contacts?: { id?: string; phone?: string | null; display_name?: string | null; name?: string | null } | null })?.contacts;
-            contactPhone = c?.phone?.trim() ?? null;
+            const c = (leadWithContact as unknown as { contact_id?: string; contacts?: { id?: string; phone_number?: string | null; display_name?: string | null; name?: string | null } | null })?.contacts;
+            contactPhone = c?.phone_number?.trim() ?? null;
             if (c) {
               contactName = (c.name || c.display_name || lead.title || "Paciente").trim();
               if (c.id) contactId = c.id;
@@ -345,7 +347,6 @@ export async function processAppointmentReminders(
             // Registra mensagem na tabela messages se houver contato associado
             if (contactId) {
               try {
-                // Busca ou cria conversa
                 let conversationId: string | null = null;
                 const { data: conv } = await admin
                   .from("conversations")

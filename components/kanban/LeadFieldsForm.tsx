@@ -26,6 +26,10 @@ import {
   Lock,
   ArrowsClockwise,
   Trash,
+  CaretDown,
+  CaretRight,
+  Receipt,
+  CheckSquare,
 } from "@/lib/ui/icons";
 
 export const FONTES_SUGERIDAS = [
@@ -95,6 +99,11 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
   const [orcamentoOpen, setOrcamentoOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  // Estados dos módulos desplegáveis (acordeões)
+  const [orcamentoCollapsed, setOrcamentoCollapsed] = useState(true);
+  const [agendamentoCollapsed, setAgendamentoCollapsed] = useState(false);
+  const [tarefasCollapsed, setTarefasCollapsed] = useState(true);
+
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
   const orcamento = customFields.orcamento as OrcamentoLead | undefined;
   const hasDetailedOrcamento = Boolean(
@@ -157,7 +166,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
       .map((s) => s.trim())
       .filter(Boolean);
 
-    let valueCents = hasDetailedOrcamento
+    const valueCents = hasDetailedOrcamento
       ? orcamento!.total_cents
       : values.valueReais.trim() ? parseReaisToCents(values.valueReais.trim()) : null;
 
@@ -318,120 +327,196 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
   return (
     <>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 text-xs">
-        {/* Card de Orçamento e Baixas de Pagamento */}
-        <OrcamentoCard lead={lead} onOpenOrcamento={() => setOrcamentoOpen(true)} />
+        {/* ========================================================= */}
+        {/* SEÇÃO 1: ORÇAMENTOS (DESPLEGÁVEL)                         */}
+        {/* ========================================================= */}
+        <div className="rounded-xl border border-border/80 bg-card overflow-hidden transition-all shadow-xs">
+          <button
+            type="button"
+            onClick={() => setOrcamentoCollapsed(!orcamentoCollapsed)}
+            className="w-full flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 transition-colors text-left"
+            aria-expanded={!orcamentoCollapsed}
+          >
+            <div className="flex items-center gap-2">
+              <Receipt size={16} className="text-primary" />
+              <span className="font-semibold text-xs text-foreground">Orçamentos & Pagamentos</span>
+              {hasDetailedOrcamento ? (
+                <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                  R$ {orcamentoTotalReais}
+                </span>
+              ) : (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-medium">
+                  {lead.value_cents ? `R$ ${(lead.value_cents / 100).toFixed(0)}` : "Sem itens"}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <span className="text-[10px]">{orcamentoCollapsed ? "Expandir" : "Recolher"}</span>
+              {orcamentoCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+            </div>
+          </button>
+
+          {!orcamentoCollapsed && (
+            <div className="p-3 border-t border-border/60">
+              <OrcamentoCard lead={lead} onOpenOrcamento={() => setOrcamentoOpen(true)} />
+            </div>
+          )}
+        </div>
 
         {/* ========================================================= */}
-        {/* SEÇÃO: AGENDAMENTO & GESTÃO DE PRESENÇA (NO-SHOW)         */}
+        {/* SEÇÃO 2: AGENDAMENTO (DESPLEGÁVEL)                        */}
         {/* ========================================================= */}
-        <div className={`rounded-xl border p-3.5 space-y-3 transition-colors ${
+        <div className={`rounded-xl border overflow-hidden transition-all shadow-xs ${
           watchedStatus === "faltou"
             ? "border-red-500/40 bg-red-500/5 dark:bg-red-950/20"
             : watchedStatus === "compareceu"
               ? "border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20"
               : "border-sky-500/30 bg-sky-500/5"
         }`}>
-          <div className="flex items-center justify-between">
-            <Label className={`flex items-center gap-1.5 text-xs font-bold ${
-              watchedStatus === "faltou"
-                ? "text-red-700 dark:text-red-400"
-                : watchedStatus === "compareceu"
-                  ? "text-emerald-700 dark:text-emerald-400"
-                  : "text-sky-700 dark:text-sky-400"
-            }`}>
-              <CalendarBlank size={15} weight="bold" />
-              Agendamento da Consulta / Avaliação
-            </Label>
-            {watchedData && (
-              <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold ${
-                watchedStatus === "faltou"
-                  ? "bg-red-500/20 text-red-700 dark:text-red-300"
-                  : watchedStatus === "compareceu"
-                    ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
-                    : "bg-sky-500/20 text-sky-700 dark:text-sky-300"
-              }`}>
-                {watchedStatus === "faltou" ? <XCircle size={12} weight="fill" /> : <CheckCircle size={12} weight="fill" />}
-                {watchedStatus === "faltou" ? "FALTOU / NÃO COMPARECEU" : watchedStatus === "compareceu" ? "COMPARECEU" : "AGENDADO"}
-                {watchedHora ? ` • ${formatDataBr(watchedData)} às ${watchedHora}` : ` • ${formatDataBr(watchedData)}`}
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="agendamento_data" className="text-xs font-medium text-foreground flex items-center gap-1">
-                <CalendarBlank size={12} /> Data do Agendamento
-              </Label>
-              <Input
-                id="agendamento_data"
-                type="date"
-                className="h-8 text-xs bg-background"
-                {...form.register("agendamento_data")}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="agendamento_hora" className="text-xs font-medium text-foreground flex items-center gap-1">
-                <Clock size={12} /> Horário do Agendamento
-              </Label>
-              <Input
-                id="agendamento_hora"
-                type="time"
-                className="h-8 text-xs bg-background"
-                {...form.register("agendamento_hora")}
-              />
-            </div>
-          </div>
-
-          {/* Botões Rápidos de Registro de Presença / Não Comparecimento (Sempre Visíveis) */}
-          <div className="pt-2 border-t border-border/60 flex flex-col gap-2">
-            <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
-              Registro Rápido de Presença da Consulta:
-            </span>
+          <button
+            type="button"
+            onClick={() => setAgendamentoCollapsed(!agendamentoCollapsed)}
+            className="w-full flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 transition-colors text-left"
+            aria-expanded={!agendamentoCollapsed}
+          >
             <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                type="button"
-                size="sm"
-                variant={watchedStatus === "compareceu" ? "default" : "outline"}
-                onClick={() => handleMarcarPresenca("compareceu")}
-                className={`h-8 px-3 text-xs font-bold gap-1.5 shadow-xs transition-all ${
-                  watchedStatus === "compareceu"
-                    ? "bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500/50"
-                    : "border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
-                }`}
-              >
-                <CheckCircle size={14} weight="bold" /> Compareceu
-              </Button>
-
-              <Button
-                type="button"
-                size="sm"
-                variant={watchedStatus === "faltou" ? "destructive" : "outline"}
-                onClick={() => handleMarcarPresenca("faltou")}
-                className={`h-8 px-3 text-xs font-bold gap-1.5 shadow-xs transition-all ${
+              <CalendarBlank size={16} className={
+                watchedStatus === "faltou"
+                  ? "text-red-600"
+                  : watchedStatus === "compareceu"
+                    ? "text-emerald-600"
+                    : "text-sky-600"
+              } weight="bold" />
+              <span className="font-semibold text-xs text-foreground">
+                Agendamento da Consulta / Avaliação
+              </span>
+              {watchedData ? (
+                <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${
                   watchedStatus === "faltou"
-                    ? "bg-red-600 hover:bg-red-700 text-white ring-2 ring-red-500/50"
-                    : "border-red-500/50 text-red-700 dark:text-red-300 hover:bg-red-500/10"
-                }`}
-              >
-                <XCircle size={14} weight="bold" /> Faltou (Não Compareceu)
-              </Button>
-
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => handleMarcarPresenca("remarcado")}
-                className="h-8 px-2.5 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground"
-              >
-                <ArrowsClockwise size={13} /> Remarcar
-              </Button>
+                    ? "bg-red-500/20 text-red-700 dark:text-red-300"
+                    : watchedStatus === "compareceu"
+                      ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                      : "bg-sky-500/20 text-sky-700 dark:text-sky-300"
+                }`}>
+                  {watchedStatus === "faltou" ? <XCircle size={11} weight="fill" /> : <CheckCircle size={11} weight="fill" />}
+                  {watchedStatus === "faltou" ? "FALTOU" : watchedStatus === "compareceu" ? "COMPARECEU" : "AGENDADO"}: {formatDataBr(watchedData)}
+                  {watchedHora ? ` às ${watchedHora}` : ""}
+                </span>
+              ) : (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-medium">
+                  Não definido
+                </span>
+              )}
             </div>
-          </div>
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <span className="text-[10px]">{agendamentoCollapsed ? "Expandir" : "Recolher"}</span>
+              {agendamentoCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+            </div>
+          </button>
+
+          {!agendamentoCollapsed && (
+            <div className="p-3.5 space-y-3 border-t border-border/60">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="agendamento_data" className="text-xs font-medium text-foreground flex items-center gap-1">
+                    <CalendarBlank size={12} /> Data do Agendamento
+                  </Label>
+                  <Input
+                    id="agendamento_data"
+                    type="date"
+                    className="h-8 text-xs bg-background"
+                    {...form.register("agendamento_data")}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="agendamento_hora" className="text-xs font-medium text-foreground flex items-center gap-1">
+                    <Clock size={12} /> Horário do Agendamento
+                  </Label>
+                  <Input
+                    id="agendamento_hora"
+                    type="time"
+                    className="h-8 text-xs bg-background"
+                    {...form.register("agendamento_hora")}
+                  />
+                </div>
+              </div>
+
+              {/* Botões Rápidos de Presença */}
+              <div className="pt-2 border-t border-border/60 flex flex-col gap-2">
+                <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                  Registro Rápido de Presença da Consulta:
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={watchedStatus === "compareceu" ? "default" : "outline"}
+                    onClick={() => handleMarcarPresenca("compareceu")}
+                    className={`h-8 px-3 text-xs font-bold gap-1.5 shadow-xs transition-all ${
+                      watchedStatus === "compareceu"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500/50"
+                        : "border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                    }`}
+                  >
+                    <CheckCircle size={14} weight="bold" /> Compareceu
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={watchedStatus === "faltou" ? "destructive" : "outline"}
+                    onClick={() => handleMarcarPresenca("faltou")}
+                    className={`h-8 px-3 text-xs font-bold gap-1.5 shadow-xs transition-all ${
+                      watchedStatus === "faltou"
+                        ? "bg-red-600 hover:bg-red-700 text-white ring-2 ring-red-500/50"
+                        : "border-red-500/50 text-red-700 dark:text-red-300 hover:bg-red-500/10"
+                    }`}
+                  >
+                    <XCircle size={14} weight="bold" /> Faltou (Não Compareceu)
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleMarcarPresenca("remarcado")}
+                    className="h-8 px-2.5 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowsClockwise size={13} /> Remarcar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Módulo de Tarefas do Lead */}
-        <LeadTasksSection leadId={lead.id} contactId={lead.contact_id} />
+        {/* ========================================================= */}
+        {/* SEÇÃO 3: TAREFAS DO LEAD (DESPLEGÁVEL)                    */}
+        {/* ========================================================= */}
+        <div className="rounded-xl border border-border/80 bg-card overflow-hidden transition-all shadow-xs">
+          <button
+            type="button"
+            onClick={() => setTarefasCollapsed(!tarefasCollapsed)}
+            className="w-full flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 transition-colors text-left"
+            aria-expanded={!tarefasCollapsed}
+          >
+            <div className="flex items-center gap-2">
+              <CheckSquare size={16} className="text-primary" />
+              <span className="font-semibold text-xs text-foreground">Tarefas & Lembretes do Lead</span>
+            </div>
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <span className="text-[10px]">{tarefasCollapsed ? "Expandir" : "Recolher"}</span>
+              {tarefasCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+            </div>
+          </button>
+
+          {!tarefasCollapsed && (
+            <div className="p-3 border-t border-border/60">
+              <LeadTasksSection leadId={lead.id} contactId={lead.contact_id} />
+            </div>
+          )}
+        </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="title" className="text-xs font-medium">Título do Lead</Label>
