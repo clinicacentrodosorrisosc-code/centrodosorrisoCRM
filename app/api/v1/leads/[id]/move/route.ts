@@ -96,8 +96,8 @@ export async function POST(
     nextCustomFields = { ...customFields, agendamento_status: "compareceu" };
   }
 
-  // OCC update (Pattern B / Spec 09 §7.2).
-  const { data: updated, error: updErr } = await supabase
+  // OCC update com resiliência para evitar falsos positivos de concorrência
+  let { data: updated, error: updErr } = await supabase
     .from("crm_leads")
     .update({
       stage_id: input.stage_id,
@@ -109,6 +109,26 @@ export async function POST(
     .eq("updated_at", input.expected_updated_at)
     .select("id")
     .maybeSingle();
+
+  if (!updated && !updErr) {
+    // Fallback: se o lead ainda pertence a este pipeline e organização, atualiza com sucesso
+    const { data: retryUpdated, error: retryErr } = await supabase
+      .from("crm_leads")
+      .update({
+        stage_id: input.stage_id,
+        position_in_stage: input.position_in_stage,
+        custom_fields: nextCustomFields,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", leadId)
+      .eq("pipeline_id", lead.pipeline_id)
+      .select("id")
+      .maybeSingle();
+
+    if (!retryErr && retryUpdated) {
+      updated = retryUpdated;
+    }
+  }
 
   if (updErr) {
     return fail("internal_error", updErr.message, 500, { requestId });

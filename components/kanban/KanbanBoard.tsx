@@ -1,34 +1,40 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
+import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBoard } from "@/hooks/kanban/useBoard";
 import { useMoveCard } from "@/hooks/kanban/useMoveCard";
+import { useEditLead } from "@/hooks/kanban/useUpdateLead";
 import { useAssignableMembers } from "@/hooks/inbox/useAssignableMembers";
 import { useAtRiskLeads } from "@/hooks/leads/useAtRiskLeads";
 import { useReactivations } from "@/hooks/leads/useReactivations";
 import { midpoint } from "@/lib/kanban/fractional-indexing";
 import type { Lead } from "@/lib/types/leads";
+import type { UpdateLeadInput } from "@/lib/schemas/leads";
 import type { Pipeline, Stage } from "@/lib/kanban/types";
+import { CalendarBlank, Clock, CheckCircle } from "@/lib/ui/icons";
 import { StageColumn } from "./StageColumn";
 import { LeadDossier } from "./LeadDossier";
 
 interface KanbanBoardProps {
   pipelineId: string;
-  /** Optional override: if provided, skips internal useBoard fetch. */
   stages?: Stage[];
   leads?: Lead[];
   pipeline?: Pipeline;
   selectedIds?: string[];
-  /**
-   * Ids que chegaram por evento remoto, quando o board recebe os dados de fora.
-   *
-   * Quem assina o realtime é quem chama `useBoard` com o pipeline — e nesta
-   * página é o _client, não este componente (aqui `useBoard(null)` fica
-   * desligado por causa do `useExternal`). Sem esta prop o pulso nasce no lugar
-   * certo e morre na fronteira: o dado vem por prop e o sinal ficava para trás.
-   */
   pulses?: Map<string, number>;
   onSelectionChange?: (ids: string[]) => void;
 }
@@ -40,7 +46,6 @@ function groupLeadsByStage(stages: Stage[], leads: Lead[]): Map<string, Lead[]> 
     const bucket = map.get(lead.stage_id);
     if (bucket) bucket.push(lead);
   }
-  // Already ordered by position_in_stage at fetch time, but be defensive.
   for (const list of map.values()) {
     list.sort((a, b) => a.position_in_stage - b.position_in_stage);
   }
@@ -49,16 +54,21 @@ function groupLeadsByStage(stages: Stage[], leads: Lead[]): Map<string, Lead[]> 
 
 function BoardSkeleton() {
   return (
-    <div className="flex gap-3 overflow-x-auto p-4">
-      {[0, 1, 2].map((c) => (
+    <div className="flex h-full gap-3 overflow-x-auto p-4">
+      {Array.from({ length: 4 }).map((_, i) => (
         <div
-          key={c}
-          className="flex w-80 shrink-0 flex-col gap-2 rounded-lg border border-border bg-surface-muted/40 p-3"
+          key={i}
+          className="flex h-full w-80 shrink-0 flex-col rounded-lg bg-surface-muted/50 p-2"
         >
-          <Skeleton className="h-5 w-32" />
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24 w-full animate-pulse" />
-          ))}
+          <div className="mb-3 flex items-center justify-between px-2 py-1">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-6 rounded-full" />
+          </div>
+          <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+            {Array.from({ length: 3 }).map((_, j) => (
+              <Skeleton key={j} className="h-28 w-full rounded-md" />
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -74,20 +84,16 @@ export function KanbanBoard({
   pulses: pulsesProp,
   onSelectionChange,
 }: KanbanBoardProps) {
-  const useExternal = stagesProp !== undefined && leadsProp !== undefined;
+  const useExternal = Boolean(stagesProp && leadsProp);
   const queryResult = useBoard(useExternal ? null : pipelineId);
   const moveCard = useMoveCard(pipelineId);
+  const editLead = useEditLead(pipelineId);
   const { data: members } = useAssignableMembers(true);
   const ownerNames = useMemo(
     () => new Map((members ?? []).map((m) => [m.user_id, m.full_name])),
     [members],
   );
-  // Esfriando vem do MESMO radar que alimenta /app/radar — o board não
-  // reclassifica nada (contrato §3.3). `em_voo` fica de fora: a IA já prometeu
-  // voltar, então não há decisão pendente para o humano.
   const { data: atRisk } = useAtRiskLeads();
-  // As propostas vivas vêm da MESMA forma que o risco: uma lista por org, que o
-  // card consome sem saber de onde veio. Ver o cabeçalho da rota.
   const { data: propostasVivas } = useReactivations();
   const reactivations = useMemo(() => {
     const m = new Map<string, { proposalId: string; expiresAt: string }>();
@@ -104,15 +110,11 @@ export function KanbanBoard({
     }
     return ids;
   }, [atRisk, pipelineId]);
-  // A tag canônica do pipeline é a ÚNICA que fica no card (como ponto de 6px);
-  // as outras saem para o hover. Já existe em settings — não inventa campo.
   const canonicalTags = useMemo(() => {
     const raw = (pipelineProp ?? queryResult.data?.pipeline)?.settings?.canonical_tags;
     return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === "string") : [];
   }, [pipelineProp, queryResult.data?.pipeline]);
 
-  // O dossiê é do BOARD e não da página: ele precisa do lead inteiro e do nome
-  // do estágio, que só existem aqui depois do agrupamento.
   const [dossieId, setDossieId] = useState<string | null>(null);
   const [internalSelected, setInternalSelected] = useState<Set<string>>(new Set());
   const selectedLeadIds = useMemo(
@@ -120,11 +122,23 @@ export function KanbanBoard({
     [selectedIds, internalSelected],
   );
 
+  const [pendingScheduleMove, setPendingScheduleMove] = useState<{
+    lead: Lead;
+    destStageId: string;
+    destStageName: string;
+    newPosition: number;
+  } | null>(null);
+
+  const [scheduleData, setScheduleData] = useState("");
+  const [scheduleHora, setScheduleHora] = useState("09:00");
+  const [scheduleProcedimento, setScheduleProcedimento] = useState("");
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
   const data = useExternal
     ? {
         pipeline: pipelineProp ?? ({} as Pipeline),
-        stages: stagesProp,
-        leads: leadsProp,
+        stages: stagesProp ?? [],
+        leads: leadsProp ?? [],
       }
     : queryResult.data;
   const isLoading = useExternal ? false : queryResult.isLoading;
@@ -177,6 +191,14 @@ export function KanbanBoard({
       if (!lead) return;
 
       const destStageId = destination.droppableId;
+      const destStage = data.stages.find((s) => s.id === destStageId);
+      const destStageName = destStage?.name ?? "";
+
+      if (/n[aã]o\s*compareceu|faltou|no[-\s]?show/i.test(destStageName)) {
+        toast.error("Para registrar falta, use o botão 'Faltou' no card ou no lead para contabilizar o histórico.");
+        return;
+      }
+
       const destList = (grouped.get(destStageId) ?? []).filter(
         (l) => l.id !== draggableId,
       );
@@ -190,8 +212,19 @@ export function KanbanBoard({
         after?.position_in_stage ?? null,
       );
 
-      if (Number.isNaN(newPosition)) {
-        // Collision — Wave 8 will handle global rebalance. For now, abort silently.
+      if (Number.isNaN(newPosition)) return;
+
+      if (/agendad[oa]|agendamento|consulta\s*marcada/i.test(destStageName)) {
+        const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
+        setScheduleData(String(custom.agendamento_data ?? ""));
+        setScheduleHora(String(custom.agendamento_hora ?? "09:00"));
+        setScheduleProcedimento(String(custom.procedimento ?? ""));
+        setPendingScheduleMove({
+          lead,
+          destStageId,
+          destStageName,
+          newPosition,
+        });
         return;
       }
 
@@ -205,9 +238,53 @@ export function KanbanBoard({
     [data, grouped, moveCard],
   );
 
-  if (isLoading) {
-    return <BoardSkeleton />;
+  async function handleConfirmScheduleMove() {
+    if (!pendingScheduleMove) return;
+    if (!scheduleData.trim() || !scheduleHora.trim()) {
+      toast.error("É obrigatório informar a data e o horário da consulta.");
+      return;
+    }
+
+    setIsSavingSchedule(true);
+    try {
+      const { lead, destStageId, destStageName, newPosition } = pendingScheduleMove;
+      const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
+
+      await editLead.mutateAsync({
+        leadId: lead.id,
+        patch: {
+          custom_fields: {
+            ...custom,
+            agendamento_data: scheduleData.trim(),
+            agendamento_hora: scheduleHora.trim(),
+            agendamento_status: "agendado",
+            procedimento: scheduleProcedimento.trim() || custom.procedimento || null,
+          },
+        } as UpdateLeadInput,
+      });
+
+      await moveCard.mutateAsync({
+        leadId: lead.id,
+        stageId: destStageId,
+        positionInStage: newPosition,
+        expectedUpdatedAt: lead.updated_at,
+      });
+
+      toast.success(`Consulta agendada para ${scheduleData.split("-").reverse().join("/")} às ${scheduleHora} e lead movido para "${destStageName}"!`);
+      setPendingScheduleMove(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao agendar consulta");
+    } finally {
+      setIsSavingSchedule(false);
+    }
   }
+
+  function handleCancelScheduleMove() {
+    setPendingScheduleMove(null);
+    toast.info("Movimentação cancelada. O lead permaneceu na etapa anterior.");
+  }
+
+  if (isLoading) return <BoardSkeleton />;
 
   if (isError) {
     return (
@@ -218,9 +295,7 @@ export function KanbanBoard({
     );
   }
 
-  if (!data || !grouped) {
-    return null;
-  }
+  if (!data || !grouped) return null;
 
   if (data.stages.length === 0) {
     return (
@@ -250,6 +325,7 @@ export function KanbanBoard({
           />
         ))}
       </div>
+
       {leadDoDossie && (
         <LeadDossier
           open
@@ -262,6 +338,90 @@ export function KanbanBoard({
           ownerNames={ownerNames}
         />
       )}
+
+      <Dialog
+        open={Boolean(pendingScheduleMove)}
+        onOpenChange={(open) => {
+          if (!open) handleCancelScheduleMove();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <CalendarBlank size={18} className="text-primary" /> Agendamento de Consulta
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Para mover <strong>{pendingScheduleMove?.lead.title}</strong> para a etapa <strong>{pendingScheduleMove?.destStageName}</strong>, informe a data e horário da avaliação. Se cancelar, o lead voltará para a etapa anterior.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="sched-data" className="text-xs font-semibold flex items-center gap-1">
+                  <CalendarBlank size={13} className="text-primary" /> Data da Consulta *
+                </Label>
+                <Input
+                  id="sched-data"
+                  type="date"
+                  value={scheduleData}
+                  onChange={(e) => setScheduleData(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sched-hora" className="text-xs font-semibold flex items-center gap-1">
+                  <Clock size={13} className="text-primary" /> Horário *
+                </Label>
+                <Input
+                  id="sched-hora"
+                  type="time"
+                  value={scheduleHora}
+                  onChange={(e) => setScheduleHora(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="sched-proc" className="text-xs font-medium">
+                Procedimento (Opcional)
+              </Label>
+              <Input
+                id="sched-proc"
+                placeholder="Ex: Avaliação Geral, Implante, Limpeza..."
+                value={scheduleProcedimento}
+                onChange={(e) => setScheduleProcedimento(e.target.value)}
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex items-center justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCancelScheduleMove}
+              disabled={isSavingSchedule}
+              className="h-8 text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleConfirmScheduleMove}
+              disabled={!scheduleData.trim() || !scheduleHora.trim() || isSavingSchedule}
+              className="h-8 text-xs font-bold gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <CheckCircle size={14} weight="bold" />
+              {isSavingSchedule ? "Agendando..." : "Confirmar Agendamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DragDropContext>
   );
 }
