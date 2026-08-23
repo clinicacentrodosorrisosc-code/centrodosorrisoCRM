@@ -391,6 +391,14 @@ export const NAV_DESTINATIONS: NavDestination[] = [
 
   // ---- Análise — olhar o sistema funcionando ----
   {
+    href: "/app/activities",
+    label: "Relatório de Atividades",
+    description: "Linha do tempo e métricas de tarefas concluídas, atendimentos e ações realizadas.",
+    icon: ListChecks,
+    group: "analise",
+    sidebar: true,
+  },
+  {
     href: "/app/metrics",
     label: "Desempenho",
     description: "Funil e performance por atendente nos últimos 30 dias.",
