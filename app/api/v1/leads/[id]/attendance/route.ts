@@ -17,7 +17,9 @@ import { logger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  status: z.enum(["compareceu", "faltou"]),
+  status: z.enum(["compareceu", "faltou", "remarcado"]),
+  nova_data: z.string().optional(),
+  nova_hora: z.string().optional(),
 });
 
 export async function POST(
@@ -42,7 +44,7 @@ export async function POST(
     return fail("validation_error", parsed.error.issues[0]?.message ?? "Payload inválido.", 400);
   }
 
-  const { status } = parsed.data;
+  const { status, nova_data, nova_hora } = parsed.data;
   const admin = createAdminClient();
 
   // 1. Busca o lead
@@ -89,10 +91,22 @@ export async function POST(
   }
 
   // 3. Atualiza o lead
-  const nextCustomFields = {
+  let nextCustomFields: Record<string, unknown> = {
     ...customFields,
     agendamento_status: status,
   };
+
+  if (status === "remarcado") {
+    const remarcacoesCount = (Number(customFields.remarcacoes_count) || 0) + 1;
+    nextCustomFields = {
+      ...customFields,
+      agendamento_data: nova_data || customFields.agendamento_data,
+      agendamento_hora: nova_hora || customFields.agendamento_hora || "09:00",
+      agendamento_status: "agendado",
+      remarcacoes_count: remarcacoesCount,
+      ultima_remarcacao_at: new Date().toISOString(),
+    };
+  }
 
   const updatePayload: Record<string, unknown> = {
     custom_fields: nextCustomFields,
@@ -117,14 +131,26 @@ export async function POST(
   }
 
   // 4. Registra atividade na linha do tempo
+  let activityType = "attendance_confirmed";
+  let activityReason = "Paciente compareceu à consulta";
+  if (status === "faltou") {
+    activityType = "attendance_no_show";
+    activityReason = "Paciente não compareceu (Falta registrada)";
+  } else if (status === "remarcado") {
+    activityType = "appointment_rescheduled";
+    activityReason = `Consulta remarcada para ${nova_data ?? ""} às ${nova_hora ?? ""}`;
+  }
+
   void admin.from("crm_lead_activities").insert({
     organization_id: org.orgId,
     lead_id: lead.id,
     contact_id: lead.contact_id,
     source_module: "crm",
-    type: status === "compareceu" ? "attendance_confirmed" : "attendance_no_show",
+    type: activityType,
     payload: {
       status,
+      nova_data: nova_data ?? null,
+      nova_hora: nova_hora ?? null,
       moved_to_stage: targetStage ? { id: targetStage.id, name: targetStage.name } : null,
       previous_stage_id: lead.stage_id,
     },
@@ -132,7 +158,7 @@ export async function POST(
     performed_at: new Date().toISOString(),
     performed_by_user_id: user.id,
     actor_kind: "user",
-    reason: status === "compareceu" ? "Paciente compareceu à consulta" : "Paciente não compareceu (Falta)",
+    reason: activityReason,
   });
 
   void audit({
@@ -142,6 +168,8 @@ export async function POST(
     metadata: {
       lead_id: lead.id,
       status,
+      nova_data: nova_data ?? null,
+      nova_hora: nova_hora ?? null,
       target_stage: targetStage?.name ?? null,
     },
   });

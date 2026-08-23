@@ -153,6 +153,8 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id, lead.value_cents, lead.custom_fields]);
 
+  const [isRescheduling, setIsRescheduling] = useState(false);
+
   const watchedData = form.watch("agendamento_data");
   const watchedHora = form.watch("agendamento_hora");
   const watchedStatus = form.watch("agendamento_status");
@@ -170,16 +172,23 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
       ? orcamento!.total_cents
       : values.valueReais.trim() ? parseReaisToCents(values.valueReais.trim()) : null;
 
+    const curCustom = (lead.custom_fields ?? {}) as Record<string, unknown>;
+    const remarcacoesCount = status === "remarcado" || isRescheduling
+      ? (Number(curCustom.remarcacoes_count) || 0) + 1
+      : Number(curCustom.remarcacoes_count) || 0;
+
     const patch: Record<string, unknown> = {
       title: values.title.trim(),
       description: values.description.trim() ? values.description.trim() : null,
       source: values.source.trim() || "WhatsApp",
       custom_fields: {
-        ...(lead.custom_fields ?? {}),
+        ...curCustom,
         procedimento: values.procedimento.trim() || null,
         agendamento_data: values.agendamento_data || null,
         agendamento_hora: values.agendamento_hora || null,
-        agendamento_status: status,
+        agendamento_status: status === "remarcado" ? "agendado" : status,
+        remarcacoes_count: remarcacoesCount,
+        ...(status === "remarcado" ? { ultima_remarcacao_at: new Date().toISOString() } : {}),
       },
       value_cents: valueCents,
       tags,
@@ -192,7 +201,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
         patch: patch as UpdateLeadInput,
       });
 
-      // Se marcou 'faltou', tenta mover o lead automaticamente para a etapa 'Não Compareceu'
+      // Se marcou 'faltou', move o lead automaticamente para a etapa 'Não Compareceu'
       if (status === "faltou" && boardData?.stages) {
         const noShowStage = boardData.stages.find((s) =>
           /n[aã]o\s*compareceu|faltou|no[-\s]?show/i.test(s.name),
@@ -204,7 +213,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
             positionInStage: 1000,
             expectedUpdatedAt: lead.updated_at,
           });
-          toast.success(`Marcado como Não Compareceu e movido para "${noShowStage.name}"!`);
+          toast.success(`Falta registrada! Lead movido automaticamente para "${noShowStage.name}".`);
         } else {
           toast.error("Lead marcado como Não Compareceu (Falta registrada)");
         }
@@ -224,8 +233,9 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
           toast.success("Presença confirmada! Paciente compareceu à avaliação.");
         }
       } else if (status === "remarcado") {
+        setIsRescheduling(true);
         form.setValue("agendamento_status", "agendado");
-        toast.info("Informe a nova data e horário abaixo para concluir o reagendamento.");
+        toast.info("Remarcação ativada! Selecione a nova data e horário abaixo.");
       }
 
       onSaved?.();
@@ -429,6 +439,34 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
 
           {!agendamentoCollapsed && (
             <div className="p-3.5 space-y-3 border-t border-border/60">
+              {/* Aviso quando o agendamento está travado */}
+              {Boolean(lead.custom_fields && (lead.custom_fields as Record<string, unknown>).agendamento_data) && !isRescheduling ? (
+                <div className="flex items-center justify-between p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-xs">
+                  <div className="flex items-center gap-1.5 text-sky-900 dark:text-sky-200">
+                    <CalendarBlank size={14} className="text-sky-500 shrink-0" />
+                    <span>
+                      Consulta marcada para <strong>{formatDataBr(watchedData)}</strong> {watchedHora ? `às ${watchedHora}` : ""}.
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleMarcarPresenca("remarcado")}
+                    className="h-7 px-2.5 text-xs font-bold gap-1 bg-background border-sky-500/40 text-sky-700 dark:text-sky-300 hover:bg-sky-500/15"
+                  >
+                    <ArrowsClockwise size={13} /> Remarcar
+                  </Button>
+                </div>
+              ) : isRescheduling ? (
+                <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                  <span className="font-semibold flex items-center gap-1">
+                    <ArrowsClockwise size={13} className="text-amber-600" /> Modo Remarcação: Escolha a nova data e horário abaixo.
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">(A remarcação será contabilizada)</span>
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="agendamento_data" className="text-xs font-medium text-foreground flex items-center gap-1">
@@ -437,7 +475,8 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
                   <Input
                     id="agendamento_data"
                     type="date"
-                    className="h-8 text-xs bg-background"
+                    disabled={Boolean(lead.custom_fields && (lead.custom_fields as Record<string, unknown>).agendamento_data) && !isRescheduling}
+                    className="h-8 text-xs bg-background disabled:opacity-75 disabled:cursor-not-allowed"
                     {...form.register("agendamento_data")}
                   />
                 </div>
@@ -449,7 +488,8 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
                   <Input
                     id="agendamento_hora"
                     type="time"
-                    className="h-8 text-xs bg-background"
+                    disabled={Boolean(lead.custom_fields && (lead.custom_fields as Record<string, unknown>).agendamento_data) && !isRescheduling}
+                    className="h-8 text-xs bg-background disabled:opacity-75 disabled:cursor-not-allowed"
                     {...form.register("agendamento_hora")}
                   />
                 </div>
@@ -494,7 +534,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
                     size="sm"
                     variant="outline"
                     onClick={() => handleMarcarPresenca("remarcado")}
-                    className="h-8 px-2.5 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground"
+                    className="h-8 px-2.5 text-xs font-medium gap-1 text-sky-700 dark:text-sky-300 border-sky-500/40 hover:bg-sky-500/10"
                   >
                     <ArrowsClockwise size={13} /> Remarcar
                   </Button>

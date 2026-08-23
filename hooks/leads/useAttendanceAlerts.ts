@@ -33,13 +33,23 @@ export function useAttendanceAlerts() {
   });
 
   const recordAttendance = useMutation({
-    mutationFn: async ({ leadId, status }: { leadId: string; status: "compareceu" | "faltou" }) => {
+    mutationFn: async ({
+      leadId,
+      status,
+      nova_data,
+      nova_hora,
+    }: {
+      leadId: string;
+      status: "compareceu" | "faltou" | "remarcado";
+      nova_data?: string;
+      nova_hora?: string;
+    }) => {
       return apiClient.post<{
         data: {
           status: string;
           moved_to_stage: { id: string; name: string } | null;
         };
-      }>(`/api/v1/leads/${leadId}/attendance`, { status });
+      }>(`/api/v1/leads/${leadId}/attendance`, { status, nova_data, nova_hora });
     },
     onSuccess: (res, vars) => {
       const moved = res.data.moved_to_stage;
@@ -49,11 +59,17 @@ export function useAttendanceAlerts() {
             ? `Presença confirmada! Lead movido para "${moved.name}".`
             : "Presença confirmada! Paciente compareceu à consulta.",
         );
-      } else {
+      } else if (vars.status === "faltou") {
         toast.error(
           moved
             ? `Falta registrada. Lead movido para "${moved.name}".`
             : "Não comparecimento registrado.",
+        );
+      } else if (vars.status === "remarcado") {
+        toast.success(
+          vars.nova_data
+            ? `Consulta remarcada com sucesso para ${vars.nova_data.split("-").reverse().join("/")} às ${vars.nova_hora || "09:00"}!`
+            : "Agendamento remarcado com sucesso!",
         );
       }
 
@@ -64,14 +80,15 @@ export function useAttendanceAlerts() {
       qc.invalidateQueries({ queryKey: ["lead", vars.leadId] });
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "Erro ao registrar presença");
+      toast.error(err instanceof Error ? err.message : "Erro ao registrar status da consulta");
     },
   });
 
-  function snoozeLead(leadId: string, minutes: number = 15) {
-    const until = Date.now() + minutes * 60 * 1000;
+  function snoozeLead(leadId: string, minutes: number = 10) {
+    const validMinutes = Math.max(1, minutes);
+    const until = Date.now() + validMinutes * 60 * 1000;
     setSnoozedMap((prev) => ({ ...prev, [leadId]: until }));
-    toast.info(`Lembrete adiado por ${minutes} minutos.`);
+    toast.info(`Lembrete pausado por ${validMinutes} minuto(s).`);
 
     // Agenda limpeza do snooze
     setTimeout(() => {
@@ -80,7 +97,7 @@ export function useAttendanceAlerts() {
         delete next[leadId];
         return next;
       });
-    }, minutes * 60 * 1000);
+    }, validMinutes * 60 * 1000);
   }
 
   return {
