@@ -34,9 +34,11 @@ async function handle(req: NextRequest): Promise<Response> {
 
   const cronSecret = env.INTERNAL_CRON_SECRET;
   const fallbackSecret = env.INTERNAL_SECRET;
+  const vercelCronSecret = process.env.CRON_SECRET;
   const accepted: string[] = [];
   if (cronSecret) accepted.push(cronSecret);
   if (fallbackSecret) accepted.push(fallbackSecret);
+  if (vercelCronSecret) accepted.push(vercelCronSecret);
 
   if (accepted.length === 0 || !provided || !accepted.includes(provided)) {
     return fail("forbidden", "Cron secret missing or invalid.", 403, { requestId });
