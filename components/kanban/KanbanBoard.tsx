@@ -26,7 +26,18 @@ import { parseReaisToCents } from "@/lib/money";
 import type { Lead } from "@/lib/types/leads";
 import type { UpdateLeadInput } from "@/lib/schemas/leads";
 import type { Pipeline, Stage } from "@/lib/kanban/types";
-import { CalendarBlank, Clock, CheckCircle, CurrencyDollar } from "@/lib/ui/icons";
+import type { OrcamentoItem, OrcamentoLead } from "@/lib/types/orcamento";
+import { PROCEDIMENTOS_SUGERIDOS } from "./LeadFieldsForm";
+import {
+  CalendarBlank,
+  Clock,
+  CheckCircle,
+  CurrencyDollar,
+  Plus,
+  Trash,
+  Receipt,
+  Sparkle,
+} from "@/lib/ui/icons";
 import { StageColumn } from "./StageColumn";
 import { LeadDossier } from "./LeadDossier";
 
@@ -38,6 +49,21 @@ interface KanbanBoardProps {
   selectedIds?: string[];
   pulses?: Map<string, number>;
   onSelectionChange?: (ids: string[]) => void;
+}
+
+interface PendingBudgetItem {
+  id: string;
+  descricao: string;
+  quantidade: number;
+  valorUnitarioReais: string;
+}
+
+function formatBRL(cents: number | null): string {
+  if (cents === null || cents === 0) return "R$ 0,00";
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(cents / 100);
 }
 
 function groupLeadsByStage(stages: Stage[], leads: Lead[]): Map<string, Lead[]> {
@@ -123,6 +149,7 @@ export function KanbanBoard({
     [selectedIds, internalSelected],
   );
 
+  // Estado para Agendamento
   const [pendingScheduleMove, setPendingScheduleMove] = useState<{
     lead: Lead;
     destStageId: string;
@@ -135,6 +162,7 @@ export function KanbanBoard({
   const [scheduleProcedimento, setScheduleProcedimento] = useState("");
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
+  // Estado para Orçamento com múltiplos procedimentos
   const [pendingBudgetMove, setPendingBudgetMove] = useState<{
     lead: Lead;
     destStageId: string;
@@ -142,8 +170,15 @@ export function KanbanBoard({
     newPosition: number;
   } | null>(null);
 
-  const [budgetValue, setBudgetValue] = useState("");
-  const [budgetProcedimento, setBudgetProcedimento] = useState("");
+  const [budgetItens, setBudgetItens] = useState<PendingBudgetItem[]>([
+    {
+      id: "item_1",
+      descricao: "",
+      quantidade: 1,
+      valorUnitarioReais: "",
+    },
+  ]);
+  const [budgetDescontoReais, setBudgetDescontoReais] = useState("");
   const [isSavingBudget, setIsSavingBudget] = useState(false);
 
   const data = useExternal
@@ -166,6 +201,23 @@ export function KanbanBoard({
     return groupLeadsByStage(data.stages, data.leads);
   }, [data]);
 
+  // Cálculos do Orçamento Dinâmico
+  const { subtotalCents, descontoCents, totalOrcamentoCents } = useMemo(() => {
+    let sub = 0;
+    for (const it of budgetItens) {
+      const unitCents = parseReaisToCents(it.valorUnitarioReais) || 0;
+      const qtd = Math.max(1, it.quantidade || 1);
+      sub += unitCents * qtd;
+    }
+    const desc = parseReaisToCents(budgetDescontoReais) || 0;
+    const tot = Math.max(0, sub - desc);
+    return {
+      subtotalCents: sub,
+      descontoCents: desc,
+      totalOrcamentoCents: tot,
+    };
+  }, [budgetItens, budgetDescontoReais]);
+
   const handleSelect = useCallback(
     (leadId: string, additive: boolean) => {
       const apply = (prev: Set<string>): Set<string> => {
@@ -186,6 +238,48 @@ export function KanbanBoard({
     },
     [onSelectionChange, selectedLeadIds],
   );
+
+  const handleAddBudgetItem = () => {
+    setBudgetItens((prev) => [
+      ...prev,
+      {
+        id: `item_${Date.now()}`,
+        descricao: "",
+        quantidade: 1,
+        valorUnitarioReais: "",
+      },
+    ]);
+  };
+
+  const handleRemoveBudgetItem = (id: string) => {
+    if (budgetItens.length <= 1) {
+      toast.error("O orçamento deve conter ao menos 1 procedimento.");
+      return;
+    }
+    setBudgetItens((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const handleUpdateBudgetItem = (
+    id: string,
+    field: "descricao" | "quantidade" | "valorUnitarioReais",
+    value: string | number,
+  ) => {
+    setBudgetItens((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        if (field === "descricao") {
+          return { ...item, descricao: String(value) };
+        }
+        if (field === "quantidade") {
+          return { ...item, quantidade: Math.max(1, Number(value) || 1) };
+        }
+        if (field === "valorUnitarioReais") {
+          return { ...item, valorUnitarioReais: String(value) };
+        }
+        return item;
+      }),
+    );
+  };
 
   const handleDragEnd = useCallback(
     (result: DropResult) => {
@@ -226,6 +320,7 @@ export function KanbanBoard({
 
       if (Number.isNaN(newPosition)) return;
 
+      // 1. Mover para Agendado
       if (/agendad[oa]|agendamento|consulta\s*marcada/i.test(destStageName)) {
         const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
         setScheduleData(String(custom.agendamento_data ?? ""));
@@ -240,20 +335,46 @@ export function KanbanBoard({
         return;
       }
 
+      // 2. Mover para Orçamento (Abre construtor de procedimentos e soma automática)
       if (/or[çc]amento|proposta|em\s*negocia[cç][aã]o/i.test(destStageName)) {
-        const hasValue = Boolean(lead.value_cents && lead.value_cents > 0);
-        if (!hasValue) {
-          const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
-          setBudgetValue("");
-          setBudgetProcedimento(String(custom.procedimento ?? ""));
-          setPendingBudgetMove({
-            lead,
-            destStageId,
-            destStageName,
-            newPosition,
-          });
-          return;
+        const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
+        const existingOrcamento = custom.orcamento as OrcamentoLead | undefined;
+
+        if (existingOrcamento?.itens && existingOrcamento.itens.length > 0) {
+          setBudgetItens(
+            existingOrcamento.itens.map((it) => ({
+              id: it.id,
+              descricao: it.descricao,
+              quantidade: it.quantidade,
+              valorUnitarioReais: (it.valor_unitario_cents / 100).toFixed(2).replace(".", ","),
+            })),
+          );
+          setBudgetDescontoReais(
+            existingOrcamento.desconto_cents
+              ? (existingOrcamento.desconto_cents / 100).toFixed(2).replace(".", ",")
+              : "",
+          );
+        } else {
+          const procInicial = String(custom.procedimento ?? custom.procedure ?? "").trim();
+          const valInicial = lead.value_cents && lead.value_cents > 0 ? (lead.value_cents / 100).toFixed(2).replace(".", ",") : "";
+          setBudgetItens([
+            {
+              id: "item_1",
+              descricao: procInicial || "",
+              quantidade: 1,
+              valorUnitarioReais: valInicial || "",
+            },
+          ]);
+          setBudgetDescontoReais("");
         }
+
+        setPendingBudgetMove({
+          lead,
+          destStageId,
+          destStageName,
+          newPosition,
+        });
+        return;
       }
 
       moveCard.mutate({
@@ -314,9 +435,16 @@ export function KanbanBoard({
 
   async function handleConfirmBudgetMove() {
     if (!pendingBudgetMove) return;
-    const cents = parseReaisToCents(budgetValue);
-    if (cents === null || cents <= 0) {
-      toast.error("É obrigatório informar o valor do orçamento (maior que R$ 0,00).");
+
+    // Validação dos itens
+    const itensValidos = budgetItens.filter((it) => it.descricao.trim().length > 0);
+    if (itensValidos.length === 0) {
+      toast.error("Adicione ao menos um procedimento odontológico com descrição e valor.");
+      return;
+    }
+
+    if (totalOrcamentoCents <= 0) {
+      toast.error("O valor total do orçamento deve ser maior que R$ 0,00.");
       return;
     }
 
@@ -325,14 +453,41 @@ export function KanbanBoard({
       const { lead, destStageId, destStageName, newPosition } = pendingBudgetMove;
       const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
 
+      const finalItens: OrcamentoItem[] = itensValidos.map((it, idx) => {
+        const unitCents = parseReaisToCents(it.valorUnitarioReais) || 0;
+        const qtd = Math.max(1, it.quantidade || 1);
+        return {
+          id: it.id || `item_${idx + 1}`,
+          descricao: it.descricao.trim(),
+          quantidade: qtd,
+          valor_unitario_cents: unitCents,
+          valor_total_cents: qtd * unitCents,
+        };
+      });
+
+      const summaryProcedimentos = finalItens
+        .map((i) => (i.quantidade > 1 ? `${i.quantidade}x ${i.descricao}` : i.descricao))
+        .join(" + ");
+
+      const orcamentoObj: OrcamentoLead = {
+        status: "rascunho",
+        itens: finalItens,
+        desconto_cents: descontoCents > 0 ? descontoCents : undefined,
+        total_cents: totalOrcamentoCents,
+        total_pago_cents: 0,
+        saldo_restante_cents: totalOrcamentoCents,
+        pagamentos: [],
+      };
+
       await editLead.mutateAsync({
         leadId: lead.id,
         patch: {
-          value_cents: cents,
+          value_cents: totalOrcamentoCents,
           custom_fields: {
             ...custom,
-            procedimento: budgetProcedimento.trim() || custom.procedimento || null,
+            procedimento: summaryProcedimentos || custom.procedimento || null,
             agendamento_status: "compareceu",
+            orcamento: orcamentoObj,
           },
         } as UpdateLeadInput,
       });
@@ -344,7 +499,7 @@ export function KanbanBoard({
         expectedUpdatedAt: lead.updated_at,
       });
 
-      toast.success(`Orçamento registrado! Lead movido para "${destStageName}" e presença confirmada.`);
+      toast.success(`Orçamento de ${formatBRL(totalOrcamentoCents)} registrado! Presença confirmada.`);
       setPendingBudgetMove(null);
     } catch {
       toast.error("Erro ao salvar orçamento do lead");
@@ -355,8 +510,6 @@ export function KanbanBoard({
 
   function handleCancelBudgetMove() {
     setPendingBudgetMove(null);
-    setBudgetValue("");
-    setBudgetProcedimento("");
     toast.info("Movimentação cancelada. O lead permaneceu na etapa anterior.");
   }
 
@@ -500,73 +653,183 @@ export function KanbanBoard({
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Orçamento Obrigatório ao Mover para Orçamento */}
+      {/* Modal de Orçamento com Múltiplos Procedimentos e Soma Automática */}
       <Dialog
         open={Boolean(pendingBudgetMove)}
         onOpenChange={(open) => {
           if (!open) handleCancelBudgetMove();
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-6">
+          <DialogHeader className="border-b border-border/60 pb-3">
             <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
-              <CurrencyDollar size={18} className="text-emerald-500" /> Registro Obrigatório de Orçamento
+              <Receipt size={20} className="text-emerald-500" /> Registro de Procedimentos & Orçamento
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Para mover <strong>{pendingBudgetMove?.lead.title}</strong> para a etapa <strong>{pendingBudgetMove?.destStageName}</strong>, é obrigatório preencher o valor do orçamento. O status do paciente será automaticamente marcado como <strong>Compareceu</strong>.
+              Adicione os procedimentos avaliados para <strong>{pendingBudgetMove?.lead.title}</strong>. O sistema calcula a soma automática do orçamento e confirma a presença do paciente.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-3 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="budget-val" className="text-xs font-semibold flex items-center gap-1">
-                <CurrencyDollar size={13} className="text-emerald-500" /> Valor Total do Orçamento (R$) *
-              </Label>
-              <Input
-                id="budget-val"
-                placeholder="Ex: 1.500,00"
-                value={budgetValue}
-                onChange={(e) => setBudgetValue(e.target.value)}
-                className="h-8 text-xs bg-background font-bold text-foreground"
-                autoFocus
-              />
+          {/* Lista de Itens do Orçamento */}
+          <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1 scrollbar-thin">
+            <div className="space-y-2">
+              {budgetItens.map((item, index) => {
+                const unitCents = parseReaisToCents(item.valorUnitarioReais) || 0;
+                const itemTotalCents = unitCents * (item.quantidade || 1);
+
+                return (
+                  <div
+                    key={item.id}
+                    className="p-3 border border-border/70 rounded-xl bg-card/80 flex flex-col gap-2.5 shadow-xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+                        <Sparkle size={12} className="text-emerald-500" /> Procedimento #{index + 1}
+                      </span>
+                      {budgetItens.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveBudgetItem(item.id)}
+                          className="h-7 w-7 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg"
+                          title="Remover procedimento"
+                        >
+                          <Trash size={14} />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                      {/* Seleção ou Digitação do Procedimento */}
+                      <div className="sm:col-span-6 space-y-1">
+                        <Label className="text-xs font-semibold text-foreground">
+                          Nome do Procedimento *
+                        </Label>
+                        <div className="flex flex-col gap-1">
+                          <Input
+                            placeholder="Ex: Implante Dentário, Clareamento..."
+                            value={item.descricao}
+                            onChange={(e) =>
+                              handleUpdateBudgetItem(item.id, "descricao", e.target.value)
+                            }
+                            list={`sugestoes-${item.id}`}
+                            className="h-8 text-xs bg-background"
+                          />
+                          <datalist id={`sugestoes-${item.id}`}>
+                            {PROCEDIMENTOS_SUGERIDOS.map((p) => (
+                              <option key={p} value={p} />
+                            ))}
+                          </datalist>
+                        </div>
+                      </div>
+
+                      {/* Quantidade */}
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs font-semibold text-foreground">
+                          Qtd
+                        </Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantidade}
+                          onChange={(e) =>
+                            handleUpdateBudgetItem(item.id, "quantidade", e.target.value)
+                          }
+                          className="h-8 text-xs bg-background text-center"
+                        />
+                      </div>
+
+                      {/* Valor Unitário R$ */}
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs font-semibold text-foreground">
+                          Valor Unit. (R$) *
+                        </Label>
+                        <Input
+                          placeholder="0,00"
+                          value={item.valorUnitarioReais}
+                          onChange={(e) =>
+                            handleUpdateBudgetItem(item.id, "valorUnitarioReais", e.target.value)
+                          }
+                          className="h-8 text-xs bg-background text-right"
+                        />
+                      </div>
+
+                      {/* Total do Item */}
+                      <div className="sm:col-span-2 space-y-1 text-right">
+                        <Label className="text-[11px] font-medium text-muted-foreground">
+                          Total Item
+                        </Label>
+                        <div className="h-8 flex items-center justify-end px-2 bg-muted/60 rounded-md border border-border/50 text-xs font-bold text-foreground tabular-nums">
+                          {formatBRL(itemTotalCents)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="budget-proc" className="text-xs font-medium">
-                Procedimento / Detalhes (Opcional)
-              </Label>
-              <Input
-                id="budget-proc"
-                placeholder="Ex: 2 Implantes + Clareamento"
-                value={budgetProcedimento}
-                onChange={(e) => setBudgetProcedimento(e.target.value)}
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="flex items-center justify-end gap-2 pt-2">
+            {/* Botão Adicionar Procedimento */}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={handleCancelBudgetMove}
-              disabled={isSavingBudget}
-              className="h-8 text-xs"
+              onClick={handleAddBudgetItem}
+              className="w-full h-8 text-xs font-semibold border-dashed gap-1.5 hover:border-emerald-500 hover:text-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20"
             >
-              Cancelar
+              <Plus size={14} weight="bold" /> Adicionar Outro Procedimento
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleConfirmBudgetMove}
-              disabled={!budgetValue.trim() || isSavingBudget}
-              className="h-8 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <CheckCircle size={14} weight="bold" />
-              {isSavingBudget ? "Salvando..." : "Confirmar Orçamento & Presença"}
-            </Button>
+
+            {/* Desconto Opcional */}
+            <div className="flex items-center justify-between pt-2 border-t border-border/50 gap-4">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                Desconto Promocional (Opcional):
+              </Label>
+              <div className="w-36">
+                <Input
+                  placeholder="R$ 0,00"
+                  value={budgetDescontoReais}
+                  onChange={(e) => setBudgetDescontoReais(e.target.value)}
+                  className="h-8 text-xs bg-background text-right"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Rodapé com Soma Total e Ações */}
+          <DialogFooter className="border-t border-border/60 pt-3 flex items-center justify-between sm:justify-between flex-wrap gap-2">
+            <div className="flex flex-col">
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                Valor Total do Orçamento ({budgetItens.length} {budgetItens.length === 1 ? "item" : "itens"}):
+              </span>
+              <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {formatBRL(totalOrcamentoCents)}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCancelBudgetMove}
+                disabled={isSavingBudget}
+                className="h-9 text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleConfirmBudgetMove}
+                disabled={totalOrcamentoCents <= 0 || isSavingBudget}
+                className="h-9 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              >
+                <CheckCircle size={16} weight="bold" />
+                {isSavingBudget ? "Salvando..." : "Confirmar Orçamento & Presença"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
