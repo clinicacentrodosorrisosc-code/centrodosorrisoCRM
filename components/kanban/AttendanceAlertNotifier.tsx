@@ -72,7 +72,7 @@ export function AttendanceAlertNotifier() {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 max-w-md w-full animate-in fade-in slide-in-from-bottom-5 duration-300">
+    <div className="fixed bottom-5 right-5 z-[9999] max-w-md w-full animate-in fade-in slide-in-from-bottom-5 duration-300">
       <Card className="border-2 border-primary/50 bg-card/95 backdrop-blur-md shadow-2xl p-4 flex flex-col gap-3 rounded-2xl ring-2 ring-primary/20">
         {/* Cabeçalho do Alerta */}
         <div className="flex items-center justify-between border-b border-border/60 pb-2.5">

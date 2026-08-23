@@ -21,8 +21,8 @@ export function useAttendanceAlerts() {
         return [];
       }
     },
-    refetchInterval: 30_000, // a cada 30 segundos
-    staleTime: 15_000,
+    refetchInterval: 10_000, // a cada 10 segundos
+    staleTime: 5_000,
   });
 
   // Filtra os que foram silenciados temporariamente

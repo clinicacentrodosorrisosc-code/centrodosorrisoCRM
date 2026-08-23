@@ -118,8 +118,9 @@ export async function GET(_req: NextRequest): Promise<Response> {
     const status = String(custom.agendamento_status ?? "agendado").toLowerCase().trim();
 
     if (!rawData) continue;
-    // Só avalia se ainda não foi marcado como compareceu, faltou ou cancelado
-    if (status !== "agendado" && status !== "" && status !== "remarcado") continue;
+    // Só avalia se ainda não foi marcado como compareceu ou faltou
+    const isCompleted = status === "compareceu" || status === "faltou" || status === "cancelado" || status === "concluido";
+    if (isCompleted) continue;
 
     const dataStr = normalizeDate(rawData);
     const horaStr = normalizeTime(rawHora);
@@ -131,8 +132,8 @@ export async function GET(_req: NextRequest): Promise<Response> {
     const diffMs = now.getTime() - agendamentoDate.getTime();
     const diffMinutes = diffMs / (60 * 1000);
 
-    // Considera pendente se o horário está a 15 min de acontecer ou se já passou (até 48h atrás)
-    if (diffMinutes >= -15 && diffMinutes <= 48 * 60) {
+    // Considera pendente a partir de 30 minutos antes da consulta até 72 horas após
+    if (diffMinutes >= -30 && diffMinutes <= 72 * 60) {
       const contactObj = lead.contacts as { phone_number?: string | null; name?: string | null; display_name?: string | null } | null;
       pending.push({
         id: lead.id,
