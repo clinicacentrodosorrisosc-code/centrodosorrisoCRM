@@ -22,6 +22,7 @@ import { fail, ok } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { OrcamentoLead } from "@/lib/types/orcamento";
+import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,28 @@ export interface AgendamentoReportItem {
   created_at: string;
 }
 
+export interface FonteBreakdownItem {
+  fonte: string;
+  count: number;
+  total_value_cents: number;
+  won_count: number;
+  conversion_rate: number;
+}
+
+export interface ProcedimentoProcuradoItem {
+  procedimento: string;
+  count: number;
+  total_value_cents: number;
+  percent_of_total: number;
+}
+
+export interface ProcedimentoFechadoItem {
+  procedimento: string;
+  count: number;
+  total_value_cents: number;
+  total_received_cents: number;
+}
+
 export interface DashboardOverviewData {
   period_days: number;
   kpis: {
@@ -109,6 +132,10 @@ export interface DashboardOverviewData {
     budget_status?: string | null;
     created_at: string;
   }[];
+  // Inteligência de Fontes e Procedimentos
+  fontes_breakdown: FonteBreakdownItem[];
+  procedimentos_procurados: ProcedimentoProcuradoItem[];
+  procedimentos_fechados: ProcedimentoFechadoItem[];
   // Listas detalhadas para os drawers de relatório dos KPIs
   approved_budgets_list: OrcamentoReportItem[];
   received_payments_list: OrcamentoReportItem[];
@@ -160,10 +187,31 @@ export async function GET(req: NextRequest): Promise<Response> {
     .eq("organization_id", activeOrg.orgId)
     .gte("created_at", fromDate.toISOString());
 
-  // 3. Negócios e Orçamentos (crm_leads)
+  // 3. Etapas do funil (busca antecipada para identificar estágios de ganho)
+  const { data: stages } = await supabase
+    .from("crm_stages")
+    .select("id, name, color, is_won, is_lost");
+
+  const stageMap = new Map<string, { name: string; color: string | null; count: number; value_cents: number }>();
+  const wonStageIds = new Set<string>();
+
+  (stages ?? []).forEach((st) => {
+    stageMap.set(st.id, {
+      name: st.name,
+      color: (st as { color?: string | null }).color ?? null,
+      count: 0,
+      value_cents: 0,
+    });
+    const sNameLower = (st.name || "").toLowerCase();
+    if ((st as { is_won?: boolean }).is_won || sNameLower.includes("ganho") || sNameLower.includes("fechado") || sNameLower.includes("aprovado") || sNameLower.includes("contratado")) {
+      wonStageIds.add(st.id);
+    }
+  });
+
+  // 4. Negócios e Orçamentos (crm_leads)
   const { data: allLeads, error: leadsError } = await supabase
     .from("crm_leads")
-    .select("id, title, value_cents, stage_id, created_at, contact_id, status, closed_at, custom_fields")
+    .select("id, title, value_cents, stage_id, created_at, contact_id, status, closed_at, custom_fields, source, source_metadata, tags")
     .eq("organization_id", activeOrg.orgId)
     .order("created_at", { ascending: false });
 
@@ -173,7 +221,7 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   // Leads em aberto no funil: status open E sem closed_at
   const openLeads = (allLeads ?? []).filter(
-    (l) => l.status === "open" && !l.closed_at,
+    (l) => l.status === "open" && !l.closed_at && (!l.stage_id || !wonStageIds.has(l.stage_id)),
   );
 
   let totalOpenValueCents = 0;
@@ -189,7 +237,12 @@ export async function GET(req: NextRequest): Promise<Response> {
   let agendamentosRemarcadoCount = 0;
   let agendamentosPendenteCount = 0;
 
-  // Calcula métricas financeiras sobre todos os leads e orçamentos
+  // Mapas para agregação de Inteligência de Procedimentos e Fontes
+  const procProcuradosMap = new Map<string, { count: number; total_value_cents: number }>();
+  const procFechadosMap = new Map<string, { count: number; total_value_cents: number; total_received_cents: number }>();
+  const fontesMap = new Map<string, { count: number; total_value_cents: number; won_count: number }>();
+
+  // Calcula métricas financeiras, procedimentos e fontes sobre todos os leads
   (allLeads ?? []).forEach((lead) => {
     const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
     const orcamento = custom.orcamento as OrcamentoLead | undefined;
@@ -202,10 +255,12 @@ export async function GET(req: NextRequest): Promise<Response> {
           ? lead.value_cents
           : 0;
 
+    const isWonByStage = lead.stage_id ? wonStageIds.has(lead.stage_id) : false;
     const isApprovedOrWon =
       orcamento?.status === "aprovado" ||
       orcamento?.status === "quitado" ||
-      lead.status === "won";
+      lead.status === "won" ||
+      isWonByStage;
 
     if (isApprovedOrWon) {
       // 1. Orçamentos Aprovados: soma o valor total contratado
@@ -219,11 +274,203 @@ export async function GET(req: NextRequest): Promise<Response> {
       // 3. Saldo a Receber: o que resta a pagar dos aprovados
       const saldoPendente = Math.max(0, leadValue - pago);
       pendingReceivedValueCents += saldoPendente;
+
+      // Procedimentos Fechados
+      const closedProcs: Array<{ name: string; val: number; paid: number }> = [];
+      if (orcamento?.itens && Array.isArray(orcamento.itens) && orcamento.itens.length > 0) {
+        for (const item of orcamento.itens) {
+          const pName = (item.descricao || "Tratamento Odontológico").trim();
+          const itemVal = item.valor_total_cents > 0 ? item.valor_total_cents : Math.round(leadValue / orcamento.itens.length);
+          const itemPaid = Math.round(pago / orcamento.itens.length);
+          closedProcs.push({ name: pName, val: itemVal, paid: itemPaid });
+        }
+      } else if (typeof custom.procedimento === "string" && custom.procedimento.trim()) {
+        closedProcs.push({ name: custom.procedimento.trim(), val: leadValue, paid: pago });
+      } else if (typeof custom.procedure === "string" && custom.procedure.trim()) {
+        closedProcs.push({ name: custom.procedure.trim(), val: leadValue, paid: pago });
+      } else {
+        closedProcs.push({ name: "Procedimento Aprovado", val: leadValue, paid: pago });
+      }
+
+      for (const cp of closedProcs) {
+        const cur = procFechadosMap.get(cp.name) ?? { count: 0, total_value_cents: 0, total_received_cents: 0 };
+        cur.count += 1;
+        cur.total_value_cents += cp.val;
+        cur.total_received_cents += cp.paid;
+        procFechadosMap.set(cp.name, cur);
+      }
     } else if (lead.status === "open" && !lead.closed_at) {
       // 4. Pipeline em Negociação (em aberto no funil, ainda não aprovado nem perdido)
       totalOpenValueCents += leadValue;
     }
+
+    // Procedimentos Procurados (Demanda Geral de Leads)
+    const procsInLead: string[] = [];
+    if (typeof custom.procedimento === "string" && custom.procedimento.trim()) {
+      procsInLead.push(custom.procedimento.trim());
+    } else if (typeof custom.procedure === "string" && custom.procedure.trim()) {
+      procsInLead.push(custom.procedure.trim());
+    }
+
+    if (Array.isArray(custom.procedimentos)) {
+      for (const p of custom.procedimentos) {
+        if (typeof p === "string" && p.trim()) procsInLead.push(p.trim());
+      }
+    }
+
+    if (orcamento?.itens && Array.isArray(orcamento.itens)) {
+      for (const item of orcamento.itens) {
+        if (item.descricao && item.descricao.trim()) {
+          procsInLead.push(item.descricao.trim());
+        }
+      }
+    }
+
+    if (typeof custom.agendamento_procedimento === "string" && custom.agendamento_procedimento.trim()) {
+      procsInLead.push(custom.agendamento_procedimento.trim());
+    }
+
+    // Varredura de tags de procedimento no lead
+    const leadTags = Array.isArray((lead as { tags?: unknown }).tags) ? (lead as { tags: string[] }).tags : [];
+    for (const t of leadTags) {
+      const tagStr = String(t).trim();
+      const tagLower = tagStr.toLowerCase();
+      if (
+        tagLower.includes("implante") ||
+        tagLower.includes("clareamento") ||
+        tagLower.includes("botox") ||
+        tagLower.includes("harmoniz") ||
+        tagLower.includes("faceta") ||
+        tagLower.includes("lente") ||
+        tagLower.includes("orto") ||
+        tagLower.includes("alinhador") ||
+        tagLower.includes("limpeza") ||
+        tagLower.includes("profilaxia") ||
+        tagLower.includes("siso") ||
+        tagLower.includes("canal") ||
+        tagLower.includes("prótese") ||
+        tagLower.includes("protese")
+      ) {
+        procsInLead.push(tagStr);
+      }
+    }
+
+    // Varredura no título do lead se não houver procedimento explícito
+    if (procsInLead.length === 0 && typeof lead.title === "string") {
+      const tLower = lead.title.toLowerCase();
+      if (tLower.includes("implante")) procsInLead.push("Implantes Dentários");
+      else if (tLower.includes("clareamento")) procsInLead.push("Clareamento Dental");
+      else if (tLower.includes("botox") || tLower.includes("harmoniz")) procsInLead.push("Harmonização Facial / Botox");
+      else if (tLower.includes("faceta") || tLower.includes("lente")) procsInLead.push("Facetas / Lentes de Contato");
+      else if (tLower.includes("alinhador") || tLower.includes("orto") || tLower.includes("aparelho")) procsInLead.push("Ortodontia / Alinhadores");
+      else if (tLower.includes("limpeza") || tLower.includes("profilaxia")) procsInLead.push("Limpeza / Avaliação");
+      else if (tLower.includes("siso") || tLower.includes("extraç") || tLower.includes("extrac")) procsInLead.push("Cirurgia / Siso");
+      else if (tLower.includes("canal") || tLower.includes("endo")) procsInLead.push("Tratamento de Canal");
+      else if (tLower.includes("prótese") || tLower.includes("protese")) procsInLead.push("Prótese Dentária");
+    }
+
+    const uniqueProcs = [...new Set(procsInLead)];
+    if (uniqueProcs.length === 0) {
+      const fallback = "Avaliação / Geral";
+      const cur = procProcuradosMap.get(fallback) ?? { count: 0, total_value_cents: 0 };
+      cur.count += 1;
+      cur.total_value_cents += leadValue;
+      procProcuradosMap.set(fallback, cur);
+    } else {
+      const valPerProc = Math.round(leadValue / uniqueProcs.length);
+      for (const pName of uniqueProcs) {
+        const cur = procProcuradosMap.get(pName) ?? { count: 0, total_value_cents: 0 };
+        cur.count += 1;
+        cur.total_value_cents += valPerProc;
+        procProcuradosMap.set(pName, cur);
+      }
+    }
+
+    // Fontes de Captação
+    const meta = ((lead as { source_metadata?: Record<string, unknown> | null }).source_metadata ?? {}) as Record<string, unknown>;
+    const rawSource = String(
+      (lead as { source?: string | null }).source ||
+      meta.utm_source ||
+      meta.source ||
+      meta.channel ||
+      custom.fonte ||
+      custom.source ||
+      custom.origem ||
+      ""
+    ).trim();
+
+    let normalizedFonte = rawSource;
+    if (!normalizedFonte || normalizedFonte.toLowerCase() === "manual") {
+      for (const t of leadTags) {
+        const tagLower = String(t).toLowerCase();
+        if (tagLower.includes("insta") || tagLower.includes("ig")) { normalizedFonte = "Instagram"; break; }
+        if (tagLower.includes("face") || tagLower.includes("fb")) { normalizedFonte = "Facebook Ads"; break; }
+        if (tagLower.includes("google") || tagLower.includes("gads")) { normalizedFonte = "Google Ads"; break; }
+        if (tagLower.includes("whats") || tagLower.includes("waha")) { normalizedFonte = "WhatsApp"; break; }
+        if (tagLower.includes("indica")) { normalizedFonte = "Indicação"; break; }
+        if (tagLower.includes("site") || tagLower.includes("landing")) { normalizedFonte = "Site / Landing Page"; break; }
+      }
+    }
+
+    if (!normalizedFonte) normalizedFonte = "WhatsApp";
+
+    const srcLower = normalizedFonte.toLowerCase();
+    if (srcLower.includes("insta") || srcLower === "ig") {
+      normalizedFonte = "Instagram";
+    } else if (srcLower.includes("face") || srcLower === "fb") {
+      normalizedFonte = "Facebook Ads";
+    } else if (srcLower.includes("google") || srcLower.includes("gads")) {
+      normalizedFonte = "Google Ads";
+    } else if (srcLower.includes("whats") || srcLower === "waha" || srcLower === "manual") {
+      normalizedFonte = "WhatsApp";
+    } else if (srcLower.includes("indica")) {
+      normalizedFonte = "Indicação";
+    } else if (srcLower.includes("site") || srcLower.includes("landing")) {
+      normalizedFonte = "Site / Landing Page";
+    } else if (srcLower.includes("passante") || srcLower.includes("balcao") || srcLower.includes("balcão")) {
+      normalizedFonte = "Passante / Balcão";
+    } else if (srcLower.includes("trafego") || srcLower.includes("tráfego") || srcLower.includes("ads")) {
+      normalizedFonte = "Tráfego Pago";
+    }
+
+    const curFonte = fontesMap.get(normalizedFonte) ?? { count: 0, total_value_cents: 0, won_count: 0 };
+    curFonte.count += 1;
+    curFonte.total_value_cents += leadValue;
+    if (isApprovedOrWon) {
+      curFonte.won_count += 1;
+    }
+    fontesMap.set(normalizedFonte, curFonte);
   });
+
+  const totalDemandCount = Array.from(procProcuradosMap.values()).reduce((acc, c) => acc + c.count, 0);
+
+  const procedimentosProcurados: ProcedimentoProcuradoItem[] = Array.from(procProcuradosMap.entries())
+    .map(([procedimento, data]) => ({
+      procedimento,
+      count: data.count,
+      total_value_cents: data.total_value_cents,
+      percent_of_total: totalDemandCount > 0 ? Math.round((data.count / totalDemandCount) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count || b.total_value_cents - a.total_value_cents);
+
+  const procedimentosFechados: ProcedimentoFechadoItem[] = Array.from(procFechadosMap.entries())
+    .map(([procedimento, data]) => ({
+      procedimento,
+      count: data.count,
+      total_value_cents: data.total_value_cents,
+      total_received_cents: data.total_received_cents,
+    }))
+    .sort((a, b) => b.total_value_cents - a.total_value_cents || b.count - a.count);
+
+  const fontesBreakdown: FonteBreakdownItem[] = Array.from(fontesMap.entries())
+    .map(([fonte, data]) => ({
+      fonte,
+      count: data.count,
+      total_value_cents: data.total_value_cents,
+      won_count: data.won_count,
+      conversion_rate: data.count > 0 ? Math.round((data.won_count / data.count) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count || b.total_value_cents - a.total_value_cents);
 
   const openDealsCount = openLeads.length;
 
@@ -236,24 +483,6 @@ export async function GET(req: NextRequest): Promise<Response> {
     .gte("created_at", startOfToday);
 
   // 5. Etapas do funil
-  const stageIds = [...new Set((allLeads ?? []).map((l) => l.stage_id).filter(Boolean))] as string[];
-  const stageMap = new Map<string, { name: string; color: string | null; count: number; value_cents: number }>();
-
-  if (stageIds.length > 0) {
-    const { data: stages } = await supabase
-      .from("crm_stages")
-      .select("id, name, color")
-      .in("id", stageIds);
-    (stages ?? []).forEach((st) => {
-      stageMap.set(st.id, {
-        name: st.name,
-        color: (st as { color?: string | null }).color ?? null,
-        count: 0,
-        value_cents: 0,
-      });
-    });
-  }
-
   openLeads.forEach((lead) => {
     if (lead.stage_id) {
       if (!stageMap.has(lead.stage_id)) {
@@ -401,10 +630,10 @@ export async function GET(req: NextRequest): Promise<Response> {
   if (contactIds.length > 0) {
     const { data: contacts } = await supabase
       .from("contacts")
-      .select("id, name, display_name")
+      .select("id, name, display_name, phone_number")
       .in("id", contactIds);
     (contacts ?? []).forEach((c) => {
-      allContactNames.set(c.id, c.display_name || c.name || "Contato");
+      allContactNames.set(c.id, rotuloDoContato(c));
     });
   }
 
@@ -581,6 +810,9 @@ export async function GET(req: NextRequest): Promise<Response> {
     daily_series: dailySeries,
     pipeline_stages: pipelineStages,
     recent_leads: recentLeads,
+    fontes_breakdown: fontesBreakdown,
+    procedimentos_procurados: procedimentosProcurados,
+    procedimentos_fechados: procedimentosFechados,
     approved_budgets_list: approvedBudgetsList,
     received_payments_list: receivedPaymentsList,
     pending_balance_list: pendingBalanceList,

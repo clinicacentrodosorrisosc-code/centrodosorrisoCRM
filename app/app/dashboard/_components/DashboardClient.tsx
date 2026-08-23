@@ -5,7 +5,11 @@ import { KpiCard } from "./KpiCard";
 import { ConversationsChart } from "./ConversationsChart";
 import { PipelineSummaryCard } from "./PipelineSummaryCard";
 import { RecentLeadsCard } from "./RecentLeadsCard";
+import { ProcedimentosProcuradosCard } from "./ProcedimentosProcuradosCard";
+import { ProcedimentosFechadosCard } from "./ProcedimentosFechadosCard";
+import { FontesBreakdownCard } from "./FontesBreakdownCard";
 import { KpiReportDrawer, type ReportType } from "./KpiReportDrawer";
+import type { DashboardOverviewData } from "@/app/api/v1/dashboard/overview/route";
 import { formatCentsBRL } from "@/lib/money";
 import {
   MessageSquare,
@@ -20,6 +24,10 @@ import {
   Calendar,
   XCircle,
   RotateCw,
+  Search,
+  Sparkles,
+  Compass,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,11 +62,20 @@ export function DashboardClient({ orgName }: Props) {
   // Controle do drawer de relatório dos KPIs
   const [reportType, setReportType] = useState<ReportType | null>(null);
 
-  const payload = data?.data;
+  const raw = data as any;
+  const payload: DashboardOverviewData | undefined =
+    raw?.data?.kpis ? raw.data : raw?.kpis ? raw : raw?.data;
 
   function openReport(type: ReportType) {
     setReportType(type);
   }
+
+  const topDemanda = payload?.procedimentos_procurados?.[0];
+  const topFechado = payload?.procedimentos_fechados?.[0];
+  const topFonte = payload?.fontes_breakdown?.[0];
+  const bestConvertingFonte = payload?.fontes_breakdown
+    ? [...payload.fontes_breakdown].filter((f) => f.count >= 1 && f.won_count > 0).sort((a, b) => b.conversion_rate - a.conversion_rate)[0]
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -254,7 +271,59 @@ export function DashboardClient({ orgName }: Props) {
           </div>
 
           {/* ========================================================= */}
-          {/* SEÇÃO 3: KPIs OPERACIONAIS & ATENDIMENTO                  */}
+          {/* SEÇÃO 3: INTELIGÊNCIA DE PROCEDIMENTOS & FONTES          */}
+          {/* ========================================================= */}
+          <div className="space-y-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              Inteligência de Procedimentos &amp; Fontes de Captação
+            </h2>
+
+            {/* KPIs Rápidos de Destaque */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Top Procedimento Procurado */}
+              <KpiCard
+                title="Procedimento Mais Procurado"
+                value={topDemanda ? topDemanda.procedimento : "—"}
+                subtitle={topDemanda ? `${topDemanda.count} ${topDemanda.count === 1 ? "lead" : "leads"} (${topDemanda.percent_of_total}% da demanda)` : "Nenhum registrado"}
+                icon={<Search className="h-5 w-5 text-sky-500" />}
+              />
+
+              {/* Procedimento Mais Vendido / Faturado */}
+              <KpiCard
+                title="Líder em Faturamento"
+                value={topFechado ? formatCentsBRL(topFechado.total_value_cents) : "R$ 0,00"}
+                subtitle={topFechado ? `${topFechado.procedimento} (${topFechado.count} ${topFechado.count === 1 ? "fechado" : "fechados"})` : "Nenhum fechamento"}
+                icon={<Sparkles className="h-5 w-5 text-emerald-500" />}
+              />
+
+              {/* Principal Canal por Volume */}
+              <KpiCard
+                title="Principal Canal (Volume)"
+                value={topFonte ? topFonte.fonte : "—"}
+                subtitle={topFonte ? `${topFonte.count} leads (${topFonte.won_count} convertidos)` : "Sem dados"}
+                icon={<Compass className="h-5 w-5 text-purple-500" />}
+              />
+
+              {/* Melhor Canal de Conversão */}
+              <KpiCard
+                title="Melhor Conversão"
+                value={bestConvertingFonte ? `${bestConvertingFonte.conversion_rate}%` : "—"}
+                subtitle={bestConvertingFonte ? `${bestConvertingFonte.fonte} (${bestConvertingFonte.won_count} ganhos)` : "Aguardando conversões"}
+                icon={<TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
+              />
+            </div>
+
+            {/* Cards Detalhados de Procedimentos Procurados, Fechados e Fontes */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 pt-1">
+              <ProcedimentosProcuradosCard procedimentos={payload.procedimentos_procurados || []} />
+              <ProcedimentosFechadosCard procedimentos={payload.procedimentos_fechados || []} />
+              <FontesBreakdownCard fontes={payload.fontes_breakdown || []} />
+            </div>
+          </div>
+
+          {/* ========================================================= */}
+          {/* SEÇÃO 4: KPIs OPERACIONAIS & ATENDIMENTO                  */}
           {/* ========================================================= */}
           <div className="space-y-2">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -317,3 +386,4 @@ export function DashboardClient({ orgName }: Props) {
     </div>
   );
 }
+
