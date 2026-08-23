@@ -42,14 +42,40 @@ interface ScheduleItem {
   is_active: boolean;
 }
 
+/** Normaliza data para YYYY-MM-DD */
+function normalizeDate(raw: string): string {
+  if (!raw) return "";
+  const clean = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+    const [d, m, y] = clean.split("/");
+    return `${y}-${m}-${d}`;
+  }
+  return clean;
+}
+
+/** Normaliza hora para HH:mm */
+function normalizeTime(raw: string): string {
+  if (!raw) return "09:00";
+  const clean = raw.trim().replace("h", ":");
+  const match = clean.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    const h = match[1]!.padStart(2, "0");
+    const m = match[2]!;
+    return `${h}:${m}`;
+  }
+  return "09:00";
+}
+
 /**
- * Converte data (YYYY-MM-DD) + hora (HH:mm) para Date em Brasília.
+ * Converte data + hora para Date em Brasília.
  * Retorna null se os valores são inválidos.
  */
 function parseAgendamento(dataStr: string, horaStr: string): Date | null {
-  if (!dataStr || !/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) return null;
-  const hora = horaStr && /^\d{2}:\d{2}$/.test(horaStr) ? horaStr : "09:00";
-  const iso = `${dataStr}T${hora}:00${BRASILIA_OFFSET}`;
+  const normDate = normalizeDate(dataStr);
+  const normTime = normalizeTime(horaStr);
+  if (!normDate || !/^\d{4}-\d{2}-\d{2}$/.test(normDate)) return null;
+  const iso = `${normDate}T${normTime}:00${BRASILIA_OFFSET}`;
   const d = new Date(iso);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -58,12 +84,14 @@ function parseAgendamento(dataStr: string, horaStr: string): Date | null {
  * Formata data/hora para texto pt-BR: "22/08/2026 às 14:30"
  */
 function formatAgendamento(dataStr: string, horaStr: string): string {
-  if (!dataStr) return "";
-  const parts = dataStr.split("-");
+  const normDate = normalizeDate(dataStr);
+  const normTime = normalizeTime(horaStr);
+  if (!normDate) return "";
+  const parts = normDate.split("-");
   if (parts.length !== 3) return dataStr;
   const [ano, mes, dia] = parts;
   const formatted = `${dia}/${mes}/${ano}`;
-  return horaStr ? `${formatted} às ${horaStr}` : formatted;
+  return normTime ? `${formatted} às ${normTime}` : formatted;
 }
 
 /**

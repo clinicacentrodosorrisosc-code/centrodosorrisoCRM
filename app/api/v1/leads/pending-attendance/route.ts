@@ -1,8 +1,11 @@
 /**
  * GET /api/v1/leads/pending-attendance
  *
- * Retorna leads que possuem agendamento cuja data e hora já chegaram (hoje),
- * mas cujo status de presença ainda não foi definido (status = "agendado").
+ * Retorna leads que possuem agendamento cuja data e hora já chegaram (ou estão a 15 min),
+ * mas cujo status de presença ainda não foi definido (status = "agendado" ou pendente).
+ *
+ * Também engatilha em background a verificação de lembretes via WhatsApp
+ * para garantir que os disparos aconteçam continuamente mesmo sem cron externo.
  */
 import type { NextRequest } from "next/server";
 import { ok, fail } from "@/lib/api/wrappers";
@@ -25,12 +28,42 @@ export interface PendingAttendanceLead {
   phone_number: string | null;
 }
 
+/** Normaliza data para YYYY-MM-DD */
+function normalizeDate(raw: string): string {
+  if (!raw) return "";
+  const clean = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+    const [d, m, y] = clean.split("/");
+    return `${y}-${m}-${d}`;
+  }
+  return clean;
+}
+
+/** Normaliza hora para HH:mm */
+function normalizeTime(raw: string): string {
+  if (!raw) return "09:00";
+  const clean = raw.trim().replace("h", ":");
+  const match = clean.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    const h = match[1]!.padStart(2, "0");
+    const m = match[2]!;
+    return `${h}:${m}`;
+  }
+  return "09:00";
+}
+
 export async function GET(_req: NextRequest): Promise<Response> {
   const auth = await requireRole("viewer");
   if (!auth.ok) return auth.response;
   const { org } = auth;
 
   const admin = createAdminClient();
+
+  // Drena os lembretes WhatsApp em background a cada consulta
+  import("@/lib/appointment-reminders/processor")
+    .then(({ processAppointmentReminders }) => processAppointmentReminders(admin))
+    .catch(() => {});
 
   const { data: leads, error } = await admin
     .from("crm_leads")
@@ -56,23 +89,26 @@ export async function GET(_req: NextRequest): Promise<Response> {
 
   for (const lead of leads ?? []) {
     const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
-    const dataStr = String(custom.agendamento_data ?? "").trim();
-    const horaStr = String(custom.agendamento_hora ?? "").trim() || "09:00";
-    const status = String(custom.agendamento_status ?? "agendado").toLowerCase();
+    const rawData = String(custom.agendamento_data ?? "").trim();
+    const rawHora = String(custom.agendamento_hora ?? "").trim();
+    const status = String(custom.agendamento_status ?? "agendado").toLowerCase().trim();
 
-    // Só avalia se tem data e se o status ainda é 'agendado'
-    if (!dataStr || (status !== "agendado" && status !== "")) continue;
+    if (!rawData) continue;
+    // Só avalia se ainda não foi marcado como compareceu, faltou ou cancelado
+    if (status !== "agendado" && status !== "" && status !== "remarcado") continue;
+
+    const dataStr = normalizeDate(rawData);
+    const horaStr = normalizeTime(rawHora);
 
     const iso = `${dataStr}T${horaStr}:00${BRASILIA_OFFSET}`;
     const agendamentoDate = new Date(iso);
     if (isNaN(agendamentoDate.getTime())) continue;
 
-    // Alerta se o horário já chegou (ou faltam até 5 min) e se a consulta foi nas últimas 8 horas
     const diffMs = now.getTime() - agendamentoDate.getTime();
     const diffMinutes = diffMs / (60 * 1000);
 
-    // Janela: de 5 minutos antes do horário até 8 horas depois
-    if (diffMinutes >= -5 && diffMinutes <= 8 * 60) {
+    // Considera pendente se o horário está a 15 min de acontecer ou se já passou (até 48h atrás)
+    if (diffMinutes >= -15 && diffMinutes <= 48 * 60) {
       const contactObj = lead.contacts as { phone_number?: string | null; name?: string | null; display_name?: string | null } | null;
       pending.push({
         id: lead.id,
@@ -88,7 +124,7 @@ export async function GET(_req: NextRequest): Promise<Response> {
     }
   }
 
-  // Ordena pelo horário do agendamento (mais recentes primeiro)
+  // Ordena pelos mais próximos/recentes
   pending.sort((a, b) => `${b.agendamento_data} ${b.agendamento_hora}`.localeCompare(`${a.agendamento_data} ${a.agendamento_hora}`));
 
   return ok({ pending });
