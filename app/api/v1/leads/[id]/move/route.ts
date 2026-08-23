@@ -86,7 +86,7 @@ export async function POST(
   // Sincronização automática do agendamento quando o lead é movido de etapa
   const targetName = stage?.name ?? "";
   const isNoShowStage = /n[aã]o\s*compareceu|faltou|no[-\s]?show/i.test(targetName);
-  const isAttendedStage = /compareceu|atendido|avaliado|avalia[cç][aã]o\s*realizada/i.test(targetName);
+  const isAttendedStage = /compareceu|atendido|avaliado|avalia[cç][aã]o\s*realizada|or[çc]amento|proposta|em\s*negocia[cç][aã]o/i.test(targetName);
 
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
   let nextCustomFields = customFields;

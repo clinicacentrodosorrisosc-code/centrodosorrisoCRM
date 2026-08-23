@@ -22,10 +22,11 @@ import { useAssignableMembers } from "@/hooks/inbox/useAssignableMembers";
 import { useAtRiskLeads } from "@/hooks/leads/useAtRiskLeads";
 import { useReactivations } from "@/hooks/leads/useReactivations";
 import { midpoint } from "@/lib/kanban/fractional-indexing";
+import { parseReaisToCents } from "@/lib/money";
 import type { Lead } from "@/lib/types/leads";
 import type { UpdateLeadInput } from "@/lib/schemas/leads";
 import type { Pipeline, Stage } from "@/lib/kanban/types";
-import { CalendarBlank, Clock, CheckCircle } from "@/lib/ui/icons";
+import { CalendarBlank, Clock, CheckCircle, CurrencyDollar } from "@/lib/ui/icons";
 import { StageColumn } from "./StageColumn";
 import { LeadDossier } from "./LeadDossier";
 
@@ -134,6 +135,17 @@ export function KanbanBoard({
   const [scheduleProcedimento, setScheduleProcedimento] = useState("");
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
+  const [pendingBudgetMove, setPendingBudgetMove] = useState<{
+    lead: Lead;
+    destStageId: string;
+    destStageName: string;
+    newPosition: number;
+  } | null>(null);
+
+  const [budgetValue, setBudgetValue] = useState("");
+  const [budgetProcedimento, setBudgetProcedimento] = useState("");
+  const [isSavingBudget, setIsSavingBudget] = useState(false);
+
   const data = useExternal
     ? {
         pipeline: pipelineProp ?? ({} as Pipeline),
@@ -228,6 +240,22 @@ export function KanbanBoard({
         return;
       }
 
+      if (/or[çc]amento|proposta|em\s*negocia[cç][aã]o/i.test(destStageName)) {
+        const hasValue = Boolean(lead.value_cents && lead.value_cents > 0);
+        if (!hasValue) {
+          const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
+          setBudgetValue("");
+          setBudgetProcedimento(String(custom.procedimento ?? ""));
+          setPendingBudgetMove({
+            lead,
+            destStageId,
+            destStageName,
+            newPosition,
+          });
+          return;
+        }
+      }
+
       moveCard.mutate({
         leadId: lead.id,
         stageId: destStageId,
@@ -281,6 +309,54 @@ export function KanbanBoard({
 
   function handleCancelScheduleMove() {
     setPendingScheduleMove(null);
+    toast.info("Movimentação cancelada. O lead permaneceu na etapa anterior.");
+  }
+
+  async function handleConfirmBudgetMove() {
+    if (!pendingBudgetMove) return;
+    const cents = parseReaisToCents(budgetValue);
+    if (cents === null || cents <= 0) {
+      toast.error("É obrigatório informar o valor do orçamento (maior que R$ 0,00).");
+      return;
+    }
+
+    setIsSavingBudget(true);
+    try {
+      const { lead, destStageId, destStageName, newPosition } = pendingBudgetMove;
+      const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
+
+      await editLead.mutateAsync({
+        leadId: lead.id,
+        patch: {
+          value_cents: cents,
+          custom_fields: {
+            ...custom,
+            procedimento: budgetProcedimento.trim() || custom.procedimento || null,
+            agendamento_status: "compareceu",
+          },
+        } as UpdateLeadInput,
+      });
+
+      await moveCard.mutateAsync({
+        leadId: lead.id,
+        stageId: destStageId,
+        positionInStage: newPosition,
+        expectedUpdatedAt: lead.updated_at,
+      });
+
+      toast.success(`Orçamento registrado! Lead movido para "${destStageName}" e presença confirmada.`);
+      setPendingBudgetMove(null);
+    } catch {
+      toast.error("Erro ao salvar orçamento do lead");
+    } finally {
+      setIsSavingBudget(false);
+    }
+  }
+
+  function handleCancelBudgetMove() {
+    setPendingBudgetMove(null);
+    setBudgetValue("");
+    setBudgetProcedimento("");
     toast.info("Movimentação cancelada. O lead permaneceu na etapa anterior.");
   }
 
@@ -339,6 +415,7 @@ export function KanbanBoard({
         />
       )}
 
+      {/* Modal de Agendamento Obrigatório ao Mover para Agendado */}
       <Dialog
         open={Boolean(pendingScheduleMove)}
         onOpenChange={(open) => {
@@ -418,6 +495,77 @@ export function KanbanBoard({
             >
               <CheckCircle size={14} weight="bold" />
               {isSavingSchedule ? "Agendando..." : "Confirmar Agendamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Orçamento Obrigatório ao Mover para Orçamento */}
+      <Dialog
+        open={Boolean(pendingBudgetMove)}
+        onOpenChange={(open) => {
+          if (!open) handleCancelBudgetMove();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <CurrencyDollar size={18} className="text-emerald-500" /> Registro Obrigatório de Orçamento
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Para mover <strong>{pendingBudgetMove?.lead.title}</strong> para a etapa <strong>{pendingBudgetMove?.destStageName}</strong>, é obrigatório preencher o valor do orçamento. O status do paciente será automaticamente marcado como <strong>Compareceu</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="budget-val" className="text-xs font-semibold flex items-center gap-1">
+                <CurrencyDollar size={13} className="text-emerald-500" /> Valor Total do Orçamento (R$) *
+              </Label>
+              <Input
+                id="budget-val"
+                placeholder="Ex: 1.500,00"
+                value={budgetValue}
+                onChange={(e) => setBudgetValue(e.target.value)}
+                className="h-8 text-xs bg-background font-bold text-foreground"
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="budget-proc" className="text-xs font-medium">
+                Procedimento / Detalhes (Opcional)
+              </Label>
+              <Input
+                id="budget-proc"
+                placeholder="Ex: 2 Implantes + Clareamento"
+                value={budgetProcedimento}
+                onChange={(e) => setBudgetProcedimento(e.target.value)}
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex items-center justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCancelBudgetMove}
+              disabled={isSavingBudget}
+              className="h-8 text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleConfirmBudgetMove}
+              disabled={!budgetValue.trim() || isSavingBudget}
+              className="h-8 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <CheckCircle size={14} weight="bold" />
+              {isSavingBudget ? "Salvando..." : "Confirmar Orçamento & Presença"}
             </Button>
           </DialogFooter>
         </DialogContent>

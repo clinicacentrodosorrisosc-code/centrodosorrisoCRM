@@ -230,6 +230,16 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
       }
     }
 
+    const currentStage = boardData?.stages?.find((s) => s.id === lead.stage_id);
+    const isOrcamentoStage = currentStage && /or[çc]amento|proposta|em\s*negocia[cç][aã]o/i.test(currentStage.name);
+
+    if (isOrcamentoStage && (!valueCents || valueCents <= 0)) {
+      form.setError("valueReais", { message: "O valor do orçamento é obrigatório nesta etapa." });
+      toast.error("O preenchimento do valor do orçamento é obrigatório para leads na etapa de Orçamento.");
+      setOrcamentoCollapsed(false);
+      return;
+    }
+
     const isDateChanged =
       values.agendamento_data !== initialAgendamentoData ||
       values.agendamento_hora !== initialAgendamentoHora;
@@ -241,6 +251,9 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
         nextAgendamentoStatus = "agendado";
         form.setValue("agendamento_status", "agendado");
       }
+    } else if (isOrcamentoStage && nextAgendamentoStatus !== "compareceu") {
+      nextAgendamentoStatus = "compareceu";
+      form.setValue("agendamento_status", "compareceu");
     }
 
     const patch: Record<string, unknown> = {
