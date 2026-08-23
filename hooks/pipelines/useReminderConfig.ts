@@ -3,15 +3,26 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
 
+export interface ReminderScheduleItem {
+  id: string;
+  /** Horas antes do agendamento (1 | 2 | 4 | 24, etc.) */
+  offset_hours: number;
+  template_name: string;
+  template_language: string;
+  is_active: boolean;
+}
+
 export interface ReminderConfig {
   id: string;
   organization_id: string;
   pipeline_id: string;
   is_active: boolean;
-  /** Horas antes do agendamento (1 | 2 | 4 | 24) */
-  offset_hours: 1 | 2 | 4 | 24;
-  template_name: string;
-  template_language: string;
+  /** Legado / padrão */
+  offset_hours?: number;
+  template_name?: string;
+  template_language?: string;
+  /** Lista de múltiplos horários de lembrete */
+  schedules: ReminderScheduleItem[];
   /** UUIDs das etapas. Vazio = todas. */
   active_stage_ids: string[];
   created_at: string;
@@ -20,9 +31,10 @@ export interface ReminderConfig {
 
 export interface SaveReminderConfigInput {
   is_active?: boolean;
-  offset_hours: 1 | 2 | 4 | 24;
-  template_name: string;
-  template_language: string;
+  offset_hours?: number;
+  template_name?: string;
+  template_language?: string;
+  schedules: ReminderScheduleItem[];
   active_stage_ids: string[];
 }
 

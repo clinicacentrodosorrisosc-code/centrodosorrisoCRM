@@ -13609,4 +13609,17 @@ REVOKE INSERT, UPDATE, DELETE ON TABLE "public"."pipeline_reminder_sent_log" FRO
 CREATE INDEX IF NOT EXISTS reminder_sent_log_lead_idx ON public.pipeline_reminder_sent_log (lead_id, config_id);
 CREATE INDEX IF NOT EXISTS reminder_sent_log_sent_at_idx ON public.pipeline_reminder_sent_log (sent_at DESC);
 
+-- ── 0163: multi-schedule reminders ─────────────────────────────────────────
+-- Apêndice idempotente — migration 20260823120000_0163_multi_reminder_schedules.sql
+
+ALTER TABLE "public"."pipeline_reminder_configs"
+  ADD COLUMN IF NOT EXISTS "schedules" jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE "public"."pipeline_reminder_sent_log"
+  ADD COLUMN IF NOT EXISTS "offset_hours" int NOT NULL DEFAULT 2;
+
+CREATE UNIQUE INDEX IF NOT EXISTS reminder_sent_log_unique_idx
+  ON public.pipeline_reminder_sent_log (lead_id, config_id, agendamento_data, offset_hours);
+
 notify pgrst, 'reload schema';
+

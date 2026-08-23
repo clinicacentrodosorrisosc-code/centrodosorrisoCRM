@@ -2,12 +2,14 @@
  * GET/PUT/DELETE /api/v1/pipelines/[id]/reminder
  *
  * Gerencia a configuração de lembrete de agendamento de um pipeline.
+ * Suporta múltiplos horários configuráveis (ex: 24h E 2h antes) com
+ * templates de mensagem independentes.
  *
  * GET  — Devolve a config atual (ou 404 se não existe).
- * PUT  — Cria ou atualiza (upsert) a config.
+ * PUT  — Cria ou atualiza (upsert) a config com schedules.
  * DELETE — Remove a config.
  *
- * Auth: requireRole("manager") para escrita; "member" para leitura.
+ * Auth: requireRole("manager") para escrita; "viewer" para leitura.
  */
 import type { NextRequest } from "next/server";
 import { z } from "zod";
@@ -20,11 +22,20 @@ import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-const putSchema = z.object({
-  is_active: z.boolean().default(true),
-  offset_hours: z.union([z.literal(1), z.literal(2), z.literal(4), z.literal(24)]).default(2),
+const scheduleItemSchema = z.object({
+  id: z.string(),
+  offset_hours: z.number().int().min(1),
   template_name: z.string().min(1, "template_name é obrigatório"),
   template_language: z.string().default("pt_BR"),
+  is_active: z.boolean().default(true),
+});
+
+const putSchema = z.object({
+  is_active: z.boolean().default(true),
+  offset_hours: z.number().int().optional(),
+  template_name: z.string().optional(),
+  template_language: z.string().optional(),
+  schedules: z.array(scheduleItemSchema).default([]),
   /** UUIDs das etapas. Array vazio = todas as etapas do pipeline. */
   active_stage_ids: z.array(z.string().uuid()).default([]),
 });
@@ -62,7 +73,22 @@ export async function GET(
   if (error) return fail("internal_error", error.message, 500);
   if (!config) return fail("not_found", "Nenhum lembrete configurado para este pipeline.", 404);
 
-  return ok({ config });
+  // Normaliza schedules caso a linha venha de base antiga
+  const normalizedSchedules = Array.isArray(config.schedules) && config.schedules.length > 0
+    ? config.schedules
+    : config.template_name
+      ? [
+          {
+            id: "legacy",
+            offset_hours: config.offset_hours ?? 2,
+            template_name: config.template_name,
+            template_language: config.template_language ?? "pt_BR",
+            is_active: config.is_active ?? true,
+          },
+        ]
+      : [];
+
+  return ok({ config: { ...config, schedules: normalizedSchedules } });
 }
 
 export async function PUT(
@@ -115,13 +141,16 @@ export async function PUT(
     }
   }
 
+  const primarySchedule = parsed.data.schedules[0];
+
   const payload = {
     organization_id: org.orgId,
     pipeline_id: pipelineId,
     is_active: parsed.data.is_active,
-    offset_hours: parsed.data.offset_hours,
-    template_name: parsed.data.template_name,
-    template_language: parsed.data.template_language,
+    offset_hours: primarySchedule?.offset_hours ?? parsed.data.offset_hours ?? 2,
+    template_name: primarySchedule?.template_name ?? parsed.data.template_name ?? "",
+    template_language: primarySchedule?.template_language ?? parsed.data.template_language ?? "pt_BR",
+    schedules: parsed.data.schedules,
     active_stage_ids: parsed.data.active_stage_ids,
     updated_at: new Date().toISOString(),
   };
@@ -143,8 +172,7 @@ export async function PUT(
     actorUserId: user.id,
     metadata: {
       pipeline_id: pipelineId,
-      offset_hours: parsed.data.offset_hours,
-      template_name: parsed.data.template_name,
+      schedules: parsed.data.schedules,
       active_stage_ids: parsed.data.active_stage_ids,
     },
   });
