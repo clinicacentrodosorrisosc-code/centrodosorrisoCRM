@@ -220,32 +220,45 @@ function ReminderConfigForm({
       const res = await apiClient.post<{
         data: {
           summary: {
+            total_leads_in_pipeline: number;
             sent: number;
             leads_evaluated: number;
+            leads_with_dates: Array<{
+              id: string;
+              title: string;
+              agendamento: string;
+              phone: string | null;
+              status: string;
+              diagnostico: string;
+            }>;
             skipped_already_sent: number;
             skipped_no_phone: number;
+            skipped_not_in_window: number;
             errors: number;
           };
         };
-      }>(`/api/v1/pipelines/${pipelineId}/reminder/test`, {});
+      }>(`/api/v1/pipelines/${pipelineId}/reminder/test`, {
+        schedules,
+        active_stage_ids: activeStageIds,
+        is_active: isActive,
+      });
 
       const s = res.data.summary;
       if (s.sent > 0) {
         toast.success(`Sucesso! ${s.sent} lembrete(s) disparado(s) agora pelo WhatsApp.`);
       } else if (s.leads_evaluated === 0) {
-        toast.info("Nenhum lead com agendamento preenchido foi encontrado neste funil.");
-      } else if (s.skipped_already_sent > 0) {
-        toast.info(
-          `${s.leads_evaluated} lead(s) avaliado(s). Os lembretes já haviam sido enviados anteriormente.`,
-        );
-      } else if (s.skipped_no_phone > 0) {
         toast.warning(
-          `${s.leads_evaluated} lead(s) avaliado(s), mas o telefone do contato está vazio/inválido.`,
+          `Foram encontrados ${s.total_leads_in_pipeline} lead(s) neste funil, mas nenhum possui data de agendamento preenchida nos campos do lead.`,
         );
       } else {
-        toast.info(
-          `${s.leads_evaluated} lead(s) avaliado(s). Nenhum lead está na janela exata de antecedência agora.`,
-        );
+        const firstLead = s.leads_with_dates[0];
+        if (firstLead) {
+          toast.info(
+            `${s.leads_evaluated} lead(s) com agendamento: ${firstLead.title} (${firstLead.agendamento}) — ${firstLead.diagnostico}`,
+          );
+        } else {
+          toast.info(`${s.leads_evaluated} lead(s) avaliado(s) com sucesso.`);
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao testar disparos");
