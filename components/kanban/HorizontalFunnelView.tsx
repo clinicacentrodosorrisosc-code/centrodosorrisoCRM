@@ -37,6 +37,16 @@ function formatBRL(cents: number | null): string {
   }).format(cents / 100);
 }
 
+// Paleta de gradientes modernos para cada estágio do funil
+const STAGE_GRADIENTS = [
+  { from: "#3b82f6", to: "#2563eb", bg: "rgba(59, 130, 246, 0.15)", text: "#60a5fa" }, // Azul
+  { from: "#6366f1", to: "#4f46e5", bg: "rgba(99, 102, 241, 0.15)", text: "#818cf8" }, // Índigo
+  { from: "#8b5cf6", to: "#7c3aed", bg: "rgba(139, 92, 246, 0.15)", text: "#a78bfa" }, // Roxo
+  { from: "#ec4899", to: "#db2777", bg: "rgba(236, 72, 153, 0.15)", text: "#f472b6" }, // Rosa
+  { from: "#f59e0b", to: "#d97706", bg: "rgba(245, 158, 11, 0.15)", text: "#fbbf24" }, // Âmbar
+  { from: "#10b981", to: "#059669", bg: "rgba(16, 185, 129, 0.15)", text: "#34d399" }, // Verde
+];
+
 export function HorizontalFunnelView({
   pipeline,
   stages,
@@ -70,7 +80,6 @@ export function HorizontalFunnelView({
       let conversionToNext: number | null = null;
       if (nextStage) {
         const nextCount = leads.filter((l) => l.stage_id === nextStage.id).length;
-        // Taxa aproximada de avanço acumulado
         conversionToNext = count > 0 ? Math.min(100, Math.round((nextCount / count) * 100)) : 0;
       }
 
@@ -102,7 +111,8 @@ export function HorizontalFunnelView({
     };
   }, [sortedStages, leads, stages]);
 
-  const activeStageData = stageStats.stages.find((s) => s.stage.id === selectedStageId) ?? stageStats.stages[0];
+  const activeStageData =
+    stageStats.stages.find((s) => s.stage.id === selectedStageId) ?? stageStats.stages[0];
 
   const filteredStageLeads = useMemo(() => {
     if (!activeStageData) return [];
@@ -119,6 +129,13 @@ export function HorizontalFunnelView({
   }, [activeStageData, searchTerm]);
 
   const leadDoDossie = dossieId ? leads.find((l) => l.id === dossieId) ?? null : null;
+
+  // Dimensões dinâmicas do funil cônico horizontal
+  const numStages = stageStats.stages.length;
+  const svgWidth = Math.max(900, numStages * 170);
+  const svgHeight = 220;
+  const segmentWidth = (svgWidth - (numStages - 1) * 10) / Math.max(1, numStages);
+  const chevronOffset = 18;
 
   return (
     <div className="flex flex-col gap-5 w-full pb-10">
@@ -181,107 +198,249 @@ export function HorizontalFunnelView({
         </Card>
       </div>
 
-      {/* 2. FUNIL HORIZONTAL DEITADO (HORIZONTAL PIPELINE FLOW) */}
-      <Card className="p-4 border border-border/80 bg-card shadow-sm rounded-2xl flex flex-col gap-4">
+      {/* 2. FUNIL HORIZONTAL CÔNICO DEITADO (REAL HORIZONTAL FUNNEL) */}
+      <Card className="p-5 border border-border/80 bg-card shadow-sm rounded-2xl flex flex-col gap-4">
         <div className="flex items-center justify-between border-b border-border/60 pb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-              <Funnel size={18} weight="fill" />
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <Funnel size={20} weight="fill" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-foreground">
-                Funil Horizontal de Vendas & Movimentação
+              <h2 className="text-base font-bold text-foreground">
+                Funil de Vendas Cônico (Horizontal)
               </h2>
-              <p className="text-[11px] text-muted-foreground">
-                Acompanhe o volume e a progressão dos leads da esquerda para a direita
+              <p className="text-xs text-muted-foreground">
+                Estrutura cônica de conversão da esquerda para a direita. Clique em uma etapa para inspecionar os leads.
               </p>
             </div>
           </div>
-          <span className="text-[11px] font-medium text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-md">
-            Clique em qualquer etapa para filtrar os pacientes
+          <span className="text-[11px] font-medium text-muted-foreground bg-muted/70 px-3 py-1.5 rounded-lg border border-border/50">
+            💡 Filtro Interativo: Selecione qualquer etapa no funil
           </span>
         </div>
 
-        {/* Trilho do Funil Deitado */}
-        <div className="flex items-stretch gap-2 overflow-x-auto pb-3 pt-1 scrollbar-thin">
+        {/* Visualizador de Funil Cônico em SVG Interativo */}
+        <div className="w-full overflow-x-auto pb-2 scrollbar-thin">
+          <div className="min-w-[900px] py-2">
+            <svg
+              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+              className="w-full h-auto drop-shadow-md select-none"
+              style={{ minHeight: "210px" }}
+            >
+              <defs>
+                {stageStats.stages.map((st, i) => {
+                  const color = STAGE_GRADIENTS[i % STAGE_GRADIENTS.length]!;
+                  const isWon = st.stage.is_won;
+                  const isLost = st.stage.is_lost;
+                  const startColor = isWon ? "#10b981" : isLost ? "#ef4444" : color.from;
+                  const endColor = isWon ? "#059669" : isLost ? "#dc2626" : color.to;
+
+                  return (
+                    <linearGradient
+                      key={`grad-${st.stage.id}`}
+                      id={`grad-${st.stage.id}`}
+                      x1="0%"
+                      y1="0%"
+                      x2="100%"
+                      y2="100%"
+                    >
+                      <stop offset="0%" stopColor={startColor} stopOpacity="0.9" />
+                      <stop offset="100%" stopColor={endColor} stopOpacity="0.75" />
+                    </linearGradient>
+                  );
+                })}
+              </defs>
+
+              {/* Desenho de Cada Segmento Cônico do Funil */}
+              {stageStats.stages.map((st, i) => {
+                const isSelected = st.stage.id === selectedStageId;
+                const isFirst = i === 0;
+                const isLast = i === numStages - 1;
+
+                // Geometria Cônica: altura inicial (190px) afinando progressivamente até (70px)
+                const startHeight = 190 - (i / Math.max(1, numStages)) * 120;
+                const endHeight = 190 - ((i + 1) / Math.max(1, numStages)) * 120;
+
+                const centerY = svgHeight / 2;
+                const yTopLeft = centerY - startHeight / 2;
+                const yBottomLeft = centerY + startHeight / 2;
+                const yTopRight = centerY - endHeight / 2;
+                const yBottomRight = centerY + endHeight / 2;
+
+                const xLeft = i * (segmentWidth + 10);
+                const xRight = xLeft + segmentWidth;
+
+                // Caminho com formato cônico e encaixe chevron
+                let pathD = "";
+                if (isFirst) {
+                  // Primeiro segmento: lado esquerdo reto, lado direito com ponta chevron
+                  pathD = `
+                    M ${xLeft} ${yTopLeft}
+                    L ${xRight - chevronOffset} ${yTopRight}
+                    L ${xRight} ${centerY}
+                    L ${xRight - chevronOffset} ${yBottomRight}
+                    L ${xLeft} ${yBottomLeft}
+                    Z
+                  `;
+                } else if (isLast) {
+                  // Último segmento: lado esquerdo com reentrância chevron, lado direito arredondado/reto
+                  pathD = `
+                    M ${xLeft} ${yTopLeft}
+                    L ${xRight} ${yTopRight}
+                    L ${xRight} ${yBottomRight}
+                    L ${xLeft} ${yBottomLeft}
+                    L ${xLeft + chevronOffset} ${centerY}
+                    Z
+                  `;
+                } else {
+                  // Segmentos intermediários: encaixes em chevron em ambos os lados
+                  pathD = `
+                    M ${xLeft} ${yTopLeft}
+                    L ${xRight - chevronOffset} ${yTopRight}
+                    L ${xRight} ${centerY}
+                    L ${xRight - chevronOffset} ${yBottomRight}
+                    L ${xLeft} ${yBottomLeft}
+                    L ${xLeft + chevronOffset} ${centerY}
+                    Z
+                  `;
+                }
+
+                const centerTextX = xLeft + segmentWidth / 2 + (isFirst ? -4 : isLast ? 4 : 0);
+
+                return (
+                  <g
+                    key={st.stage.id}
+                    onClick={() => setSelectedStageId(st.stage.id)}
+                    className="cursor-pointer transition-all duration-300 group"
+                    style={{ outline: "none" }}
+                  >
+                    {/* Polígono Cônico da Etapa */}
+                    <path
+                      d={pathD}
+                      fill={`url(#grad-${st.stage.id})`}
+                      stroke={isSelected ? "#ffffff" : "rgba(255,255,255,0.25)"}
+                      strokeWidth={isSelected ? 3.5 : 1.5}
+                      className="transition-all duration-300 group-hover:brightness-110"
+                      filter={isSelected ? "drop-shadow(0 4px 12px rgba(0,0,0,0.3))" : undefined}
+                    />
+
+                    {/* Destaque Visual ao Estar Selecionado */}
+                    {isSelected && (
+                      <circle
+                        cx={centerTextX}
+                        cy={yTopLeft - 6}
+                        r={4}
+                        fill="#38bdf8"
+                        className="animate-pulse"
+                      />
+                    )}
+
+                    {/* Informações Centrais dentro do Funil */}
+                    <text
+                      x={centerTextX}
+                      y={centerY - 22}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="11"
+                      fontWeight="bold"
+                      className="pointer-events-none tracking-wide"
+                    >
+                      {st.stage.name.length > 18 ? `${st.stage.name.slice(0, 16)}...` : st.stage.name}
+                    </text>
+
+                    {/* Número de Leads */}
+                    <text
+                      x={centerTextX}
+                      y={centerY + 5}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="20"
+                      fontWeight="900"
+                      className="pointer-events-none drop-shadow-sm font-sans"
+                    >
+                      {st.count} <tspan fontSize="11" fontWeight="normal" opacity="0.9">leads</tspan>
+                    </text>
+
+                    {/* Percentual e Valor */}
+                    <text
+                      x={centerTextX}
+                      y={centerY + 24}
+                      textAnchor="middle"
+                      fill="rgba(255,255,255,0.95)"
+                      fontSize="10"
+                      fontWeight="600"
+                      className="pointer-events-none"
+                    >
+                      {st.percentOfTotal}% do total
+                    </text>
+
+                    <text
+                      x={centerTextX}
+                      y={centerY + 38}
+                      textAnchor="middle"
+                      fill="rgba(255,255,255,0.85)"
+                      fontSize="9.5"
+                      fontWeight="bold"
+                      className="pointer-events-none"
+                    >
+                      {formatBRL(st.stageCents)}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+
+        {/* Fita de Taxas de Conversão e Indicadores Entre Etapas */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-2.5 pt-1">
           {stageStats.stages.map((st, idx) => {
             const isSelected = st.stage.id === selectedStageId;
-            const isFirst = idx === 0;
-            const isLast = idx === stageStats.stages.length - 1;
             const isWon = st.stage.is_won;
             const isLost = st.stage.is_lost;
 
-            // Largura proporcional ou mínima
-            const fillHeightPct = stageStats.totalLeads > 0
-              ? Math.max(15, Math.round((st.count / Math.max(1, stageStats.totalLeads)) * 100))
-              : 20;
-
             return (
-              <div key={st.stage.id} className="flex items-center gap-1.5 shrink-0">
-                {/* Bloco da Etapa no Funil */}
-                <button
-                  type="button"
-                  onClick={() => setSelectedStageId(st.stage.id)}
-                  className={`relative flex flex-col justify-between w-48 sm:w-52 p-3 rounded-xl border text-left transition-all group cursor-pointer ${
-                    isSelected
-                      ? "border-primary ring-2 ring-primary/30 bg-primary/5 shadow-md scale-[1.02]"
-                      : "border-border/80 hover:border-border hover:bg-muted/40 bg-card/90"
-                  }`}
-                >
-                  {/* Topo do Bloco */}
-                  <div className="flex items-start justify-between gap-1 mb-2">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        Etapa {idx + 1}
-                      </span>
-                      <span className="text-xs font-bold text-foreground truncate max-w-[130px]" title={st.stage.name}>
-                        {st.stage.name}
-                      </span>
-                    </div>
-                    <Badge
-                      variant={isWon ? "default" : isLost ? "destructive" : "secondary"}
-                      className={`text-[10px] px-1.5 py-0 font-bold ${
-                        isWon ? "bg-emerald-600 text-white" : ""
-                      }`}
-                    >
-                      {st.count}
-                    </Badge>
-                  </div>
+              <button
+                key={`btn-${st.stage.id}`}
+                type="button"
+                onClick={() => setSelectedStageId(st.stage.id)}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all ${
+                  isSelected
+                    ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/30"
+                    : "border-border/70 hover:border-border hover:bg-muted/40 bg-card"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                    Etapa {idx + 1}
+                  </span>
+                  <Badge
+                    variant={isWon ? "default" : isLost ? "destructive" : "secondary"}
+                    className={`text-[9px] px-1 py-0 h-4 font-bold ${
+                      isWon ? "bg-emerald-600 text-white" : ""
+                    }`}
+                  >
+                    {st.count}
+                  </Badge>
+                </div>
 
-                  {/* Barra Visual Cônica Horizontal */}
-                  <div className="w-full bg-muted/60 rounded-full h-2 overflow-hidden my-2 border border-border/30">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        isWon
-                          ? "bg-emerald-500"
-                          : isLost
-                            ? "bg-red-500"
-                            : isSelected
-                              ? "bg-primary"
-                              : "bg-sky-500"
-                      }`}
-                      style={{ width: `${Math.max(8, st.percentOfTotal)}%` }}
-                    />
-                  </div>
+                <span className="text-xs font-bold text-foreground truncate" title={st.stage.name}>
+                  {st.stage.name}
+                </span>
 
-                  {/* Rodapé do Bloco: Valor & % */}
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/40">
-                    <span className="font-semibold text-foreground">
-                      {formatBRL(st.stageCents)}
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/40">
+                  <span className="font-semibold text-primary">
+                    {formatBRL(st.stageCents)}
+                  </span>
+                  {st.conversionToNext !== null ? (
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold" title="Conversão para a próxima etapa">
+                      ➔ {st.conversionToNext}%
                     </span>
-                    <span className="font-mono">
-                      {st.percentOfTotal}% do total
-                    </span>
-                  </div>
-                </button>
-
-                {/* Seta de Transição para a próxima etapa */}
-                {!isLast && (
-                  <div className="flex flex-col items-center justify-center px-1 text-muted-foreground/70">
-                    <ArrowRight size={16} weight="bold" className="text-primary/70" />
-                  </div>
-                )}
-              </div>
+                  ) : (
+                    <span className="text-[9px] font-medium text-muted-foreground">Final</span>
+                  )}
+                </div>
+              </button>
             );
           })}
         </div>
@@ -292,7 +451,7 @@ export function HorizontalFunnelView({
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
-              Leads na etapa: <Badge variant="outline" className="text-xs font-bold text-primary">{activeStageData?.stage.name}</Badge>
+              Pacientes na etapa: <Badge variant="outline" className="text-xs font-bold text-primary">{activeStageData?.stage.name}</Badge>
             </h3>
             <span className="text-xs text-muted-foreground">
               ({filteredStageLeads.length} de {activeStageData?.count ?? 0})
