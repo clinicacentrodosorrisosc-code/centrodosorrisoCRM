@@ -17,6 +17,7 @@ import { ScoreSlot } from "./ScoreSlot";
 import { LeadTimeline } from "./LeadTimeline";
 import { OwnerBadge } from "./OwnerBadge";
 import { DeleteLeadDialog } from "./DeleteLeadDialog";
+import { OrcamentoDialog } from "./OrcamentoDialog";
 import { resolveLeadOwner } from "@/lib/kanban/owner";
 import { ChatThread } from "@/components/inbox/ChatThread";
 import { Composer } from "@/components/inbox/Composer";
@@ -68,6 +69,7 @@ export function LeadDossier({
   const score = lead.score ?? null;
   const [activeTab, setActiveTab] = useState<"chat" | "dados" | "timeline">("chat");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [orcamentoOpen, setOrcamentoOpen] = useState(false);
 
   const qc = useQueryClient();
   const edit = useEditLead(pipelineId);
@@ -98,6 +100,11 @@ export function LeadDossier({
   const agendamentoStatus = String(customFields.agendamento_status ?? "agendado");
 
   async function handleHeaderMarcarPresenca(status: "compareceu" | "faltou") {
+    if (status === "compareceu") {
+      setOrcamentoOpen(true);
+      return;
+    }
+
     try {
       const res = await apiClient.post<{
         data: {
@@ -108,19 +115,11 @@ export function LeadDossier({
       }>(`/api/v1/leads/${lead.id}/attendance`, { status });
 
       const moved = res.data.moved_to_stage;
-      if (status === "compareceu") {
-        toast.success(
-          moved
-            ? `Presença confirmada! Lead movido automaticamente para "${moved.name}".`
-            : "Presença confirmada! Paciente compareceu à avaliação.",
-        );
-      } else if (status === "faltou") {
-        toast.error(
-          moved
-            ? `Falta registrada! Lead movido automaticamente para "${moved.name}".`
-            : "Lead marcado como Não Compareceu (Falta registrada).",
-        );
-      }
+      toast.error(
+        moved
+          ? `Falta registrada! Lead movido automaticamente para "${moved.name}".`
+          : "Lead marcado como Não Compareceu (Falta registrada).",
+      );
 
       // Atualiza board e lead
       qc.invalidateQueries({ queryKey: ["board"] });
@@ -373,6 +372,13 @@ export function LeadDossier({
         leadTitle={lead.title}
         pipelineId={pipelineId}
         onSuccess={() => onOpenChange(false)}
+      />
+
+      <OrcamentoDialog
+        open={orcamentoOpen}
+        onOpenChange={setOrcamentoOpen}
+        lead={lead}
+        pipelineId={pipelineId}
       />
     </Sheet>
   );

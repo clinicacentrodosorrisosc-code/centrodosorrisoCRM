@@ -19,6 +19,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEditLead } from "@/hooks/kanban/useUpdateLead";
+import { useMoveCard } from "@/hooks/kanban/useMoveCard";
+import { useBoard } from "@/hooks/kanban/useBoard";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Lead } from "@/lib/types/leads";
 import {
   OrcamentoItem,
@@ -65,6 +68,9 @@ function centsToReais(cents: number): string {
 
 export function OrcamentoDialog({ open, onOpenChange, lead, pipelineId }: Props) {
   const edit = useEditLead(pipelineId);
+  const move = useMoveCard(pipelineId);
+  const { data: boardData } = useBoard(pipelineId);
+  const qc = useQueryClient();
 
   // Carrega orçamento existente ou inicializa padrão
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
@@ -253,10 +259,17 @@ export function OrcamentoDialog({ open, onOpenChange, lead, pipelineId }: Props)
       observacoes,
     );
 
+    const summaryProcedimentos = dadosFinais.itens
+      .filter((i) => i.descricao.trim())
+      .map((i) => (i.quantidade > 1 ? `${i.quantidade}x ${i.descricao}` : i.descricao))
+      .join(" + ");
+
     const patch = {
       value_cents: dadosFinais.total_cents,
       custom_fields: {
         ...(lead.custom_fields ?? {}),
+        procedimento: summaryProcedimentos || (lead.custom_fields as Record<string, unknown> | undefined)?.procedimento || null,
+        agendamento_status: "compareceu",
         orcamento: dadosFinais,
       },
     };
@@ -266,7 +279,27 @@ export function OrcamentoDialog({ open, onOpenChange, lead, pipelineId }: Props)
         leadId: lead.id,
         patch: patch as never,
       });
-      toast.success("Orçamento salvo com sucesso!");
+
+      // Se a etapa atual não for Orçamento, move automaticamente para Orçamento
+      const orcamentoStage = boardData?.stages?.find((s) =>
+        /or[çc]amento|proposta|em\s*negocia[cç][aã]o/i.test(s.name),
+      );
+      if (orcamentoStage && lead.stage_id !== orcamentoStage.id) {
+        await move.mutateAsync({
+          leadId: lead.id,
+          stageId: orcamentoStage.id,
+          positionInStage: 0,
+          expectedUpdatedAt: lead.updated_at,
+        });
+      }
+
+      qc.invalidateQueries({ queryKey: ["board"] });
+      qc.invalidateQueries({ queryKey: ["board", pipelineId] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: ["lead", lead.id] });
+      qc.invalidateQueries({ queryKey: ["pending-attendance-alerts"] });
+
+      toast.success("Orçamento salvo, presença confirmada e lead movido para Orçamento!");
       onOpenChange(false);
     } catch {
       toast.error("Erro ao salvar orçamento.");
