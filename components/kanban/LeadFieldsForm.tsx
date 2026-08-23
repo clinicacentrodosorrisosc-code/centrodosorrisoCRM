@@ -272,37 +272,35 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
         patch: parsed.data as UpdateLeadInput,
       });
 
-      // Se o lead estava na etapa Não Compareceu e foi reagendado com nova data, move ele de volta para a etapa de Agendamento
+      // Se o lead foi reagendado com nova data/hora válida, move ele para a etapa "Agendado"
       if (isDateChanged && values.agendamento_data && boardData?.stages) {
-        const currentStage = boardData.stages.find((s) => s.id === lead.stage_id);
-        const isCurrentlyNoShowStage =
-          currentStage && /n[aã]o\s*compareceu|faltou|no[-\s]?show/i.test(currentStage.name);
+        const agendamentoStage =
+          boardData.stages.find(
+            (s) =>
+              /^agendad[oa]s?$/i.test(s.name.trim()) &&
+              !s.is_won &&
+              !s.is_lost,
+          ) ??
+          boardData.stages.find(
+            (s) =>
+              /^(agendad[oa]s?|consulta\s*agendada|avalia[cç][aã]o\s*agendada)/i.test(s.name.trim()) &&
+              !/aguardando|espera/i.test(s.name) &&
+              !s.is_won &&
+              !s.is_lost,
+          );
 
-        if (isCurrentlyNoShowStage) {
-          const agendamentoStage =
-            boardData.stages.find(
-              (s) =>
-                /agend|avalia[cç][aã]o\s*agendada|visita/i.test(s.name) &&
-                !s.is_won &&
-                !s.is_lost,
-            ) ??
-            boardData.stages.find(
-              (s) => !s.is_won && !s.is_lost && !/n[aã]o\s*compareceu|faltou/i.test(s.name),
-            );
-
-          if (agendamentoStage && agendamentoStage.id !== lead.stage_id) {
-            await move.mutateAsync({
-              leadId: lead.id,
-              stageId: agendamentoStage.id,
-              positionInStage: 1000,
-              expectedUpdatedAt: lead.updated_at,
-            });
-            toast.success(
-              `Novo agendamento salvo! Lead movido de volta para "${agendamentoStage.name}".`,
-            );
-            onSaved?.();
-            return;
-          }
+        if (agendamentoStage && agendamentoStage.id !== lead.stage_id) {
+          await move.mutateAsync({
+            leadId: lead.id,
+            stageId: agendamentoStage.id,
+            positionInStage: 1000,
+            expectedUpdatedAt: lead.updated_at,
+          });
+          toast.success(
+            `Novo agendamento salvo! Lead movido para "${agendamentoStage.name}".`,
+          );
+          onSaved?.();
+          return;
         }
       }
 

@@ -84,9 +84,24 @@ export async function POST(
       // Procura etapa de Não Compareceu / Faltou
       const noShowStage = stages.find(
         (s: { id: string; name: string; is_won: boolean; is_lost: boolean }) =>
-          /n[aã]o\s*compareceu|faltou|no[-\s]?show/i.test(s.name),
+          /n[aã]o\s*compareceu|faltou|falta|ausente|no[-\s]?show/i.test(s.name),
       );
       if (noShowStage) targetStage = noShowStage;
+    } else if (status === "remarcado" && nova_data) {
+      // Procura etapa de Agendado (excluindo explicitamente "Aguardando agendamento")
+      const agendadoStage =
+        stages.find(
+          (s: { id: string; name: string; is_won: boolean; is_lost: boolean }) =>
+            /^agendad[oa]s?$/i.test(s.name.trim()) && !s.is_won && !s.is_lost,
+        ) ??
+        stages.find(
+          (s: { id: string; name: string; is_won: boolean; is_lost: boolean }) =>
+            /^(agendad[oa]s?|consulta\s*agendada|avalia[cç][aã]o\s*agendada)/i.test(s.name.trim()) &&
+            !/aguardando|espera/i.test(s.name) &&
+            !s.is_won &&
+            !s.is_lost,
+        );
+      if (agendadoStage) targetStage = agendadoStage;
     }
   }
 
