@@ -181,7 +181,7 @@ export function KanbanCard({
           onClick={handleClick}
           title={leadTags.length > 0 ? `Tags: ${leadTags.join(", ")}` : undefined}
           className={cn(
-            "group relative overflow-hidden rounded-lg border border-border/80 bg-surface",
+            "group relative overflow-hidden rounded-lg border border-border/80 bg-surface cursor-pointer select-none",
             "p-3 shadow-xs transition-all duration-150",
             "hover:border-border-strong hover:shadow-sm",
             snapshot.isDragging && "rotate-1 shadow-md ring-2 ring-accent/40 z-50",
