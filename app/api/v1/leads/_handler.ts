@@ -520,6 +520,72 @@ export async function updateLeadHandler(
     metadata: { ...a.metadataActor, fields },
   });
 
+  // Meta Conversions API (CAPI) triggers
+  try {
+    const prevCustom = ((existing as { custom_fields?: Record<string, unknown> }).custom_fields ?? {}) as Record<string, unknown>;
+    const nextCustom = ((updated as { custom_fields?: Record<string, unknown> }).custom_fields ?? {}) as Record<string, unknown>;
+    const sourceMeta = ((updated as { source_metadata?: Record<string, unknown> }).source_metadata ?? {}) as Record<string, unknown>;
+    const ctwaClid = (nextCustom.ctwa_clid as string) || (sourceMeta.ctwa_clid as string) || (sourceMeta.ctwaClid as string) || null;
+    const adId = (nextCustom.ad_id as string) || (sourceMeta.source_id as string) || (sourceMeta.adId as string) || null;
+
+    // 1. Agendamento marcado ou alterado
+    if (nextCustom.agendamento_data && nextCustom.agendamento_data !== prevCustom.agendamento_data) {
+      const { sendMetaConversionEvent } = await import("@/lib/channels/meta/conversions");
+      const contactId = (updated as { contact_id?: string | null }).contact_id;
+      let contactPhone: string | null = null;
+      let contactName: string | null = (updated as { title?: string }).title ?? null;
+      if (contactId) {
+        const { data: ct } = await supabase.from("contacts").select("phone_number,name,display_name").eq("id", contactId).maybeSingle();
+        if (ct) {
+          contactPhone = ct.phone_number;
+          contactName = ct.display_name || ct.name || contactName;
+        }
+      }
+      void sendMetaConversionEvent(supabase, {
+        organizationId: existing.organization_id,
+        eventName: "Schedule",
+        phone: contactPhone,
+        name: contactName,
+        ctwaClid,
+        adId,
+        contentName: (nextCustom.procedimento as string) || "Consulta Odontológica",
+      });
+    }
+
+    // 2. Orçamento aprovado ou Ganho
+    const prevOrc = prevCustom.orcamento as { status?: string; total_cents?: number } | undefined;
+    const nextOrc = nextCustom.orcamento as { status?: string; total_cents?: number } | undefined;
+    const isWon = (updated as { status?: string }).status === "won" || (nextOrc?.status === "aprovado" && prevOrc?.status !== "aprovado");
+
+    if (isWon) {
+      const { sendMetaConversionEvent } = await import("@/lib/channels/meta/conversions");
+      const contactId = (updated as { contact_id?: string | null }).contact_id;
+      let contactPhone: string | null = null;
+      let contactName: string | null = (updated as { title?: string }).title ?? null;
+      if (contactId) {
+        const { data: ct } = await supabase.from("contacts").select("phone_number,name,display_name").eq("id", contactId).maybeSingle();
+        if (ct) {
+          contactPhone = ct.phone_number;
+          contactName = ct.display_name || ct.name || contactName;
+        }
+      }
+      const valCents = nextOrc?.total_cents ?? (updated as { value_cents?: number | null }).value_cents ?? 0;
+      void sendMetaConversionEvent(supabase, {
+        organizationId: existing.organization_id,
+        eventName: "Purchase",
+        phone: contactPhone,
+        name: contactName,
+        valueCents: valCents,
+        currency: "BRL",
+        ctwaClid,
+        adId,
+        contentName: (nextCustom.procedimento as string) || "Tratamento Fechado",
+      });
+    }
+  } catch (err) {
+    console.warn("[lead.update] erro ao disparar evento de conversao da Meta:", err);
+  }
+
   const { triggerImmediateFollowupProcessing } = await import("@/lib/followup/instant-trigger");
   void triggerImmediateFollowupProcessing(existing.organization_id);
 

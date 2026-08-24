@@ -69,6 +69,14 @@ export interface DadosDoNascimento {
   conversationId: string;
   /** nome do contato, para o título do card. */
   nomeDoContato: string | null;
+  /** Fonte de captação (ex: 'Facebook Ads', 'Instagram', 'WhatsApp') */
+  source?: string;
+  /** Metadados de anúncio ou rastreamento (CTWA referral, UTMs) */
+  sourceMetadata?: Record<string, unknown>;
+  /** Tags adicionais a aplicar no lead criado */
+  tags?: string[];
+  /** Campos customizados iniciais (ex: procedimento, ad_id, ctwa_clid) */
+  customFields?: Record<string, unknown>;
 }
 
 /**
@@ -205,9 +213,13 @@ export async function garantirLeadDaConversa(
       ? doCadastro
       : doPayload !== "" && !ehIdentificadorTecnico(doPayload)
         ? doPayload
-        : // "Sem nome" serve para uma linha de lista; um card de kanban precisa
-          // dizer de onde veio, senão o quadro vira uma coluna de anônimos iguais.
-          "Novo contato pelo WhatsApp";
+        : "Novo contato pelo WhatsApp";
+
+  const leadSource = dados.source || "WhatsApp";
+  const leadSourceMeta = dados.sourceMetadata || {};
+  const leadTags = dados.tags || [];
+  const leadCustom = dados.customFields || {};
+
   const { data: lead, error } = await db
     .from("crm_leads")
     .insert({
@@ -216,7 +228,10 @@ export async function garantirLeadDaConversa(
       stage_id: destino.stageId,
       contact_id: contactId,
       title: titulo,
-      source: "whatsapp",
+      source: leadSource,
+      source_metadata: leadSourceMeta,
+      tags: leadTags,
+      custom_fields: leadCustom,
     })
     .select("id")
     .single();

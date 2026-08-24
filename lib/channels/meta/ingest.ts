@@ -27,6 +27,8 @@ import { ARCHIVED_AT, queryTolerantToMissingArchived } from "../archived";
 import { phoneLookupVariants } from "../phone-variants";
 import { resolveMetaCreds } from "./credentials";
 import type { InboundMessageEvent } from "./webhook";
+import { garantirLeadDaConversa } from "@/lib/leads/nascimento-do-lead";
+import { sendMetaConversionEvent } from "./conversions";
 
 type Admin = SupabaseClient;
 
@@ -236,15 +238,64 @@ export async function ingestMetaInbound(
     p_at: e.sentAt.toISOString(),
   } as never);
 
+  // Garante que o contato vire Lead no Kanban se não houver um aberto
+  // Extrai metadados do anúncio CTWA se houver
+  const referral = e.referral;
+  const leadSource = referral
+    ? referral.sourceType === "ad"
+      ? "Facebook Ads"
+      : "WhatsApp"
+    : "WhatsApp";
+
+  const customFields: Record<string, unknown> = {};
+  const tags: string[] = [];
+
+  if (referral) {
+    tags.push("Ads Facebook");
+    if (referral.headline) tags.push(referral.headline);
+    customFields.ad_id = referral.sourceId;
+    customFields.ad_headline = referral.headline;
+    customFields.ad_source_url = referral.sourceUrl;
+    customFields.ctwa_clid = referral.ctwaClid;
+
+    // Detecção inteligente de procedimento a partir do anúncio
+    const textToCheck = `${referral.headline ?? ""} ${referral.body ?? ""} ${e.text ?? ""}`.toLowerCase();
+    if (textToCheck.includes("implante")) customFields.procedimento = "Implantes Dentários";
+    else if (textToCheck.includes("clareamento")) customFields.procedimento = "Clareamento Dental";
+    else if (textToCheck.includes("botox") || textToCheck.includes("harmoniz")) customFields.procedimento = "Harmonização Facial / Botox";
+    else if (textToCheck.includes("faceta") || textToCheck.includes("lente")) customFields.procedimento = "Facetas / Lentes de Contato";
+    else if (textToCheck.includes("alinhador") || textToCheck.includes("orto") || textToCheck.includes("aparelho")) customFields.procedimento = "Ortodontia / Alinhadores";
+    else if (textToCheck.includes("limpeza") || textToCheck.includes("profilaxia")) customFields.procedimento = "Limpeza / Profilaxia";
+  }
+
+  // Criação/Garantia do Lead
+  garantirLeadDaConversa(admin, {
+    organizationId: orgId,
+    contactId: contactId as string,
+    conversationId: conversationId as string,
+    nomeDoContato: e.profileName,
+    source: leadSource,
+    sourceMetadata: referral ? { ...referral, utm_source: "meta_ads", utm_medium: "cpc" } : {},
+    tags,
+    customFields,
+  }).catch((err) => {
+    console.error("[meta.ingest] falha ao garantir lead da conversa:", err);
+  });
+
+  // Disparo de evento de conversão 'Lead' para a Meta Conversions API (CAPI)
+  sendMetaConversionEvent(admin, {
+    organizationId: orgId,
+    eventName: "Lead",
+    phone,
+    name: e.profileName,
+    ctwaClid: referral?.ctwaClid ?? null,
+    adId: referral?.sourceId ?? null,
+    contentName: typeof customFields.procedimento === "string" ? customFields.procedimento : "Atendimento WhatsApp",
+  }).catch((err) => {
+    console.warn("[meta.ingest] sendMetaConversionEvent falhou silenciosamente:", err);
+  });
+
   // Dispara a persistência da mídia — fire-and-forget, mesmo padrão do WAHA.
-  //
-  // A URL temporária retornada pela Graph API expira em ~5 minutos. Sem este
-  // evento o worker nunca é acordado e a URL expira antes de ser baixada;
-  // o atendente vê o player mas o áudio não carrega (403 na tentativa de fetch).
-  //
-  // O insert acima já guardou a URL enquanto ela é válida — o worker só precisa
-  // buscar a linha, chamar `fetchInboundMedia` e subir para o bucket. A partir
-  // daí o `media_storage_path` garante disponibilidade permanente (signed URL 1h).
   const inseridaId = (inserida as { id: string } | null)?.id;
   if (inseridaId && mediaUrl) {
     admin

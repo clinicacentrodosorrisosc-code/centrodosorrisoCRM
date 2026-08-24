@@ -33,6 +33,7 @@ import {
   CaretRight,
   Receipt,
   CheckSquare,
+  Sparkle,
 } from "@/lib/ui/icons";
 
 export const FONTES_SUGERIDAS = [
@@ -558,6 +559,56 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
             {...form.register("title", { required: true, minLength: 2 })}
           />
         </div>
+
+        {/* Seção Informativa de Rastreamento de Anúncio Meta Ads (CTWA) se presente */}
+        {(() => {
+          const sourceMeta = (lead.source_metadata ?? {}) as Record<string, unknown>;
+          const adHeadline = String(customFields.ad_headline ?? sourceMeta.headline ?? "").trim();
+          const adId = String(customFields.ad_id ?? sourceMeta.source_id ?? sourceMeta.ad_id ?? "").trim();
+          const adSourceUrl = String(customFields.ad_source_url ?? sourceMeta.source_url ?? "").trim();
+          const ctwaClid = String(customFields.ctwa_clid ?? sourceMeta.ctwa_clid ?? "").trim();
+          const hasMetaAd = Boolean(adHeadline || adId || ctwaClid);
+
+          if (!hasMetaAd) return null;
+
+          return (
+            <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-semibold">
+                  <Sparkle size={14} weight="fill" />
+                  <span>Anúncio de Origem (Meta Ads / WhatsApp)</span>
+                </div>
+                <span className="text-[10px] bg-blue-500/15 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono font-medium">
+                  Click-to-WhatsApp
+                </span>
+              </div>
+              {adHeadline && (
+                <div>
+                  <span className="text-muted-foreground font-medium">Campanha / Título: </span>
+                  <span className="font-bold text-foreground">{adHeadline}</span>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                {adId && (
+                  <div>
+                    <span>ID do Anúncio: </span>
+                    <span className="font-mono text-foreground font-medium">{adId}</span>
+                  </div>
+                )}
+                {adSourceUrl && (
+                  <a
+                    href={adSourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Ver no Facebook / Instagram ↗
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Campo Fonte */}

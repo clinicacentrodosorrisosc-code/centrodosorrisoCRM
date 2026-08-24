@@ -55,6 +55,18 @@ export interface TemplateStatusEvent {
   reason: string | null;
 }
 
+export interface MetaReferral {
+  sourceUrl: string | null;
+  sourceType: string | null;
+  sourceId: string | null;
+  headline: string | null;
+  body: string | null;
+  mediaType: string | null;
+  imageUrl: string | null;
+  videoUrl: string | null;
+  ctwaClid: string | null;
+}
+
 /**
  * Mensagem ENVIADA PELO CONTATO. A metade que faltava do canal: sem ela o oficial
  * é um megafone — o cliente responde e nada chega, nenhum lead se move, o agente não
@@ -86,6 +98,8 @@ export interface InboundMessageEvent {
     /** Nota de voz de verdade (não anexo de áudio). */
     voice: boolean;
   } | null;
+  /** Metadados do anúncio Click-to-WhatsApp (CTWA Referral) quando o lead clica no anúncio */
+  referral?: MetaReferral | null;
 }
 
 /** Status de entrega de uma mensagem que ENVIAMOS (sent/delivered/read/failed). */
@@ -176,6 +190,22 @@ export function parseMetaWebhook(envelope: MetaWebhookEnvelope): MetaWebhookEven
           const tipo = str(raw.type) ?? "unknown";
           const corpoMidia = raw[tipo] as Record<string, unknown> | undefined;
 
+          // Extração de metadados de anúncio CTWA (Click-to-WhatsApp Ads Referral)
+          const rawRef = raw.referral as Record<string, unknown> | undefined;
+          const referral: MetaReferral | null = rawRef
+            ? {
+                sourceUrl: str(rawRef.source_url),
+                sourceType: str(rawRef.source_type) ?? "ad",
+                sourceId: str(rawRef.source_id),
+                headline: str(rawRef.headline),
+                body: str(rawRef.body),
+                mediaType: str(rawRef.media_type),
+                imageUrl: str(rawRef.image_url),
+                videoUrl: str(rawRef.video_url),
+                ctwaClid: str(rawRef.ctwa_clid),
+              }
+            : null;
+
           out.push({
             kind: "inbound_message",
             wabaId,
@@ -196,6 +226,7 @@ export function parseMetaWebhook(envelope: MetaWebhookEnvelope): MetaWebhookEven
                     voice: corpoMidia.voice === true,
                   }
                 : null,
+            referral,
           });
         }
         continue;
