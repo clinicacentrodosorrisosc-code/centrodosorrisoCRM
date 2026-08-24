@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Tag, Receipt, Users, ArrowRight } from "@/lib/ui/icons";
+import { Tag, Receipt, Users, ArrowRight, Sparkle } from "@/lib/ui/icons";
 import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
 import type { ConversationWithContact } from "@/hooks/inbox/useConversationsRealtime";
@@ -19,6 +19,7 @@ import { useDefaultPipeline } from "@/hooks/pipelines/useDefaultPipeline";
 import { NewLeadDialog } from "@/components/kanban/NewLeadDialog";
 import { cn } from "@/lib/utils";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
+import type { Contact } from "@/lib/types/contacts";
 
 interface Props {
   conversation: ConversationWithContact | null;
@@ -31,6 +32,9 @@ interface LeadRow {
   value_cents: number | null;
   currency: string | null;
   updated_at: string;
+  source?: string | null;
+  source_metadata?: Record<string, unknown> | null;
+  custom_fields?: Record<string, unknown> | null;
 }
 
 interface OrderRow {
@@ -352,6 +356,52 @@ export function CRMSidePanel({ conversation }: Props) {
               ))}
             </div>
           )}
+          {/* Anúncio de Origem Meta Ads / Campanha se presente */}
+          {(() => {
+            const latestLead = leads?.[0];
+            const sourceMeta = (latestLead?.source_metadata ?? {}) as Record<string, unknown>;
+            const customFields = (latestLead?.custom_fields ?? {}) as Record<string, unknown>;
+            const adHeadline = String(customFields.ad_headline ?? sourceMeta.headline ?? "").trim();
+            const adId = String(customFields.ad_id ?? sourceMeta.source_id ?? sourceMeta.ad_id ?? "").trim();
+            const adSourceUrl = String(customFields.ad_source_url ?? sourceMeta.source_url ?? "").trim();
+            const source = latestLead?.source ?? "";
+            const isAd = Boolean(adHeadline || adId || (source && source.toLowerCase().includes("ads")));
+
+            if (!isAd) return null;
+
+            return (
+              <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-2 space-y-1 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1 font-semibold text-blue-700 dark:text-blue-300 text-[11px]">
+                    <Sparkle size={12} weight="fill" />
+                    <span>Origem: {source || "Meta Ads"}</span>
+                  </div>
+                  <span className="text-[9px] bg-blue-500/15 text-blue-700 dark:text-blue-300 px-1 py-0.2 rounded font-mono font-medium">
+                    CTWA
+                  </span>
+                </div>
+                {adHeadline && (
+                  <div className="text-[11px] font-medium text-foreground">
+                    <span className="text-muted-foreground">Campanha: </span>
+                    {adHeadline}
+                  </div>
+                )}
+                {adSourceUrl && (
+                  <div>
+                    <a
+                      href={adSourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium text-[10px]"
+                    >
+                      Ver anúncio no Facebook / Instagram ↗
+                    </a>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <div className="flex flex-wrap gap-2 pt-1">
             <Button
               size="sm"
@@ -393,6 +443,8 @@ export function CRMSidePanel({ conversation }: Props) {
           pipelineId={defaultPipeline.data.pipeline.id}
           stages={defaultPipeline.data.stages}
           contactId={contactId}
+          initialTitle={displayName && displayName !== "Sem nome" ? displayName : (contact?.name ?? "")}
+          initialContact={contact as Contact | null}
         />
       )}
 

@@ -31,6 +31,7 @@ import {
   XCircle,
   CalendarBlank,
   Trash,
+  Sparkle,
 } from "@/lib/ui/icons";
 
 interface Props {
@@ -95,6 +96,13 @@ export function LeadDossier({
   const conversationId = directConversationId || fetchedConvData || null;
 
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
+  const sourceMeta = (lead.source_metadata ?? {}) as Record<string, unknown>;
+  const adHeadline = String(customFields.ad_headline ?? sourceMeta.headline ?? "").trim();
+  const adId = String(customFields.ad_id ?? sourceMeta.source_id ?? sourceMeta.ad_id ?? "").trim();
+  const adSourceUrl = String(customFields.ad_source_url ?? sourceMeta.source_url ?? "").trim();
+  const ctwaClid = String(customFields.ctwa_clid ?? sourceMeta.ctwa_clid ?? "").trim();
+  const hasMetaAd = Boolean(adHeadline || adId || ctwaClid || (lead.source && lead.source.toLowerCase().includes("ads")));
+
   const agendamentoData = String(customFields.agendamento_data ?? "").trim();
   const agendamentoHora = String(customFields.agendamento_hora ?? "").trim();
   const agendamentoStatus = String(customFields.agendamento_status ?? "agendado");
@@ -269,6 +277,40 @@ export function LeadDossier({
               </Button>
             </div>
           </div>
+
+          {/* Anúncio de Origem Meta Ads / Campanha (sempre visível no topo do Dossiê) */}
+          {hasMetaAd && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-1.5 text-xs">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Sparkle size={13} weight="fill" className="text-blue-600 dark:text-blue-400 shrink-0" />
+                <span className="font-semibold text-blue-700 dark:text-blue-300 shrink-0">
+                  Anúncio de Origem:
+                </span>
+                {adHeadline ? (
+                  <span className="font-medium text-foreground truncate" title={adHeadline}>
+                    {adHeadline}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">{lead.source || "Meta Ads / WhatsApp"}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {adSourceUrl && (
+                  <a
+                    href={adSourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline font-medium text-[11px]"
+                  >
+                    Ver Anúncio ↗
+                  </a>
+                )}
+                <span className="text-[10px] bg-blue-500/15 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono font-medium">
+                  {ctwaClid ? "Meta Ads (CTWA)" : (lead.source || "Ads")}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Abas no mobile/telas compactas */}
           <div className="mt-2 flex md:hidden items-center gap-1 border-t border-border/50 pt-2 text-xs">

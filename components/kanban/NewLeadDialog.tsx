@@ -60,6 +60,9 @@ interface Props {
   stages: Stage[];
   /** Vincula o lead criado a este contato de origem (ex.: painel do Inbox). */
   contactId?: string | null;
+  /** Título inicial sugerido para o lead (ex.: nome do contato na conversa). */
+  initialTitle?: string;
+  initialContact?: Contact | null;
 }
 
 function defaultStageId(stages: Stage[]): string {
@@ -67,7 +70,15 @@ function defaultStageId(stages: Stage[]): string {
   return open?.id ?? stages[0]?.id ?? "";
 }
 
-export function NewLeadDialog({ open, onOpenChange, pipelineId, stages, contactId }: Props) {
+export function NewLeadDialog({
+  open,
+  onOpenChange,
+  pipelineId,
+  stages,
+  contactId,
+  initialTitle,
+  initialContact,
+}: Props) {
   const create = useCreateLead(pipelineId);
   const createContact = useCreateContact();
   const { procedimentos: listaProcedimentos, fontes: listaFontes } = useCadastros();
@@ -92,7 +103,7 @@ export function NewLeadDialog({ open, onOpenChange, pipelineId, stages, contactI
 
   const form = useForm<FormShape>({
     defaultValues: {
-      title: "",
+      title: initialTitle ?? "",
       description: "",
       source: "WhatsApp",
       procedimento: "",
@@ -118,15 +129,40 @@ export function NewLeadDialog({ open, onOpenChange, pipelineId, stages, contactI
       setNewContactName("");
       setNewContactPhone("");
       setContactError(null);
+
+      const resolvedTitle = (initialTitle ?? "").trim() || (initialContact?.name ?? "");
+
+      form.reset({
+        title: resolvedTitle,
+        description: "",
+        source: "WhatsApp",
+        procedimento: "",
+        stage_id: initialStage,
+        valueReais: "",
+        tagsRaw: "",
+        expected_close_date: "",
+      });
+
       if (contactId) {
-        // Se já veio com contactId fixo, busca da lista se disponível
-        const found = contactsList.find((c) => c.id === contactId);
-        if (found) setSelectedContact(found);
+        if (initialContact) {
+          setSelectedContact(initialContact);
+          if (!resolvedTitle && initialContact.name) {
+            form.setValue("title", initialContact.name);
+          }
+        } else {
+          const found = contactsList.find((c) => c.id === contactId);
+          if (found) {
+            setSelectedContact(found);
+            if (!resolvedTitle && found.name) {
+              form.setValue("title", found.name);
+            }
+          }
+        }
       } else {
         setSelectedContact(null);
       }
     }
-  }, [open, contactId, contactsList]);
+  }, [open, contactId, contactsList, initialTitle, initialContact, initialStage, form]);
 
   // Criação rápida de contato inline
   async function handleCreateNewContact() {

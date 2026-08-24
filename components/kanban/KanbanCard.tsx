@@ -156,6 +156,10 @@ export function KanbanCard({
   // Tags do Lead
   const leadTags = Array.isArray(lead.tags) ? lead.tags : card.tags ?? [];
 
+  // Metadados de Anúncio
+  const sourceMeta = (lead.source_metadata ?? {}) as Record<string, unknown>;
+  const adHeadline = String(custom.ad_headline ?? sourceMeta.headline ?? "").trim();
+
   // Avatar
   const avatarTheme = getAvatarColor(card.title || "Lead");
   const initial = (card.title || "L").trim().charAt(0).toUpperCase();
@@ -340,6 +344,16 @@ export function KanbanCard({
                   title={`Fonte: ${fonteBadge.label}`}
                 >
                   {fonteBadge.label}
+                </span>
+              )}
+
+              {/* Badge de Campanha/Anúncio Meta Ads */}
+              {adHeadline && (
+                <span
+                  className="inline-flex items-center rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 text-[10px] font-semibold truncate max-w-[130px]"
+                  title={`Campanha / Anúncio: ${adHeadline}`}
+                >
+                  📢 {adHeadline}
                 </span>
               )}
 
