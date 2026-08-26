@@ -129,7 +129,7 @@ function envelope(payload: WahaPayload): WahaEnvelope {
 const CELULAR_NOWEB: WahaPayload = {
   id: "true_250302204792918@lid_2A1B890FB8AA87730CBC",
   from: "250302204792918@lid",
-  fromMe: true,
+  _data: { key: { fromMe: true } },
   body: "respondi por aqui mesmo",
   timestamp: 1_760_000_000,
 };

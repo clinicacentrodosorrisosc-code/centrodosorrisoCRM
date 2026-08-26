@@ -917,7 +917,8 @@ export async function dispatchWahaEvent(
   const payload = envelope.payload ?? {};
 
   if (eventType === "message" || eventType === "message.any") {
-    if (payload.fromMe) {
+    // O NOWEB pode colocar `fromMe` no payload principal ou na chave Baileys.
+    if (payload.fromMe ?? payload._data?.key?.fromMe) {
       await handleOutboundFromUserPhone(admin, session, payload, requestId);
     } else {
       await handleInbound(admin, session, payload, requestId);
