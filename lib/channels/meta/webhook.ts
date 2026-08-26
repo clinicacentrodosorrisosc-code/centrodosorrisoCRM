@@ -100,6 +100,7 @@ export interface InboundMessageEvent {
   } | null;
   /** Metadados do anúncio Click-to-WhatsApp (CTWA Referral) quando o lead clica no anúncio */
   referral?: MetaReferral | null;
+  direction?: "inbound" | "outbound";
 }
 
 /** Status de entrega de uma mensagem que ENVIAMOS (sent/delivered/read/failed). */
@@ -178,15 +179,17 @@ export function parseMetaWebhook(envelope: MetaWebhookEnvelope): MetaWebhookEven
       // Mensagens RECEBIDAS. Vem no mesmo `field: "messages"` das entregas — o que
       // separa é `messages[]` (do contato) vs `statuses[]` (das nossas). Tratar os
       // dois no mesmo `if` faria um mascarar o outro quando ambos vêm juntos.
-      if (change.field === "messages" && Array.isArray(v.messages)) {
+      if ((change.field === "messages" || change.field === "smb_message_echoes") && Array.isArray(change.field === "smb_message_echoes" ? v.message_echoes : v.messages)) {
         const meta = (v.metadata ?? {}) as Record<string, unknown>;
         const contatos = Array.isArray(v.contacts) ? (v.contacts as Record<string, unknown>[]) : [];
-        for (const raw of v.messages as Record<string, unknown>[]) {
+        const isEcho = change.field === "smb_message_echoes";
+        const rawMessages = (isEcho ? v.message_echoes : v.messages) as Record<string, unknown>[];
+        for (const raw of rawMessages) {
           const id = str(raw.id);
-          const from = str(raw.from);
+          const from = str(isEcho ? raw.to : raw.from);
           if (!id || !from) continue; // payload capenga não vira linha meia-boca
 
-          const perfil = contatos.find((c) => str(c.wa_id) === from);
+          const perfil = isEcho ? null : contatos.find((c) => str(c.wa_id) === from);
           const tipo = str(raw.type) ?? "unknown";
           const corpoMidia = raw[tipo] as Record<string, unknown> | undefined;
 
@@ -227,6 +230,7 @@ export function parseMetaWebhook(envelope: MetaWebhookEnvelope): MetaWebhookEven
                   }
                 : null,
             referral,
+            direction: isEcho ? "outbound" : "inbound",
           });
         }
         continue;
