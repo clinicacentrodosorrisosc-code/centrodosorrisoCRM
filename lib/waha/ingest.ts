@@ -645,7 +645,7 @@ async function handleOutboundFromUserPhone(
   // enviadas pelo composer e pela IA apareciam (essas nascem no banco antes do
   // webhook, então não dependiam deste caminho). O sintoma era "respondi pelo
   // celular e o CRM não mostra", sem nenhum erro em log: o webhook devolvia 200.
-  const chatId = p.to ?? chatIdFromWaMessageId(p.id ?? "") ?? p.from ?? "";
+  const chatId = (p.to?.trim() || chatIdFromWaMessageId(p.id ?? p._data?.key?.id ?? "") || p._data?.key?.remoteJid || p.from || "");
   const parsed = parseChatId(chatId);
   if (parsed.kind === "group") return;
   if (!p.id) return;
