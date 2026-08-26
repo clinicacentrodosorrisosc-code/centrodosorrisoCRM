@@ -36,6 +36,7 @@ import {
   Storefront,
   UserCircle,
   Users,
+  UploadSimple,
   UsersThree,
   WebhooksLogo,
 } from "@/lib/ui/icons";
