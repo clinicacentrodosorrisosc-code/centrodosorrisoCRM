@@ -202,7 +202,6 @@ export const NAV_DESTINATIONS: NavDestination[] = [
     sidebar: true,
   },
   {
-  {
     href: "/app/leads/importar",
     label: "Importar leads",
     description: "Importe leads do Kommo e escolha o funil e a etapa de destino.",
