@@ -208,7 +208,7 @@ export async function ingestMetaInbound(
       // descartava o resultado — a falha virou "recebido: 1" com nada gravado.
       channel_session_id: sessao.id,
       contact_id: contactId as string,
-      direction: "inbound",
+      direction: e.direction ?? "inbound",
       status: "delivered",
       type: e.type === "text" ? "text" : e.type,
       body: e.text,
@@ -233,7 +233,7 @@ export async function ingestMetaInbound(
   // do chamador em vez de sumir.
   await admin.rpc("fn_mark_conversation_message" as never, {
     p_conv: conversationId as string,
-    p_direction: "inbound",
+    p_direction: e.direction ?? "inbound",
     p_preview: previewOf(e),
     p_at: e.sentAt.toISOString(),
   } as never);
