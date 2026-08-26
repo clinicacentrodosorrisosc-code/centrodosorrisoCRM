@@ -23,6 +23,7 @@ import { fail } from "@/lib/api/wrappers";
 import { parseMetaWebhook, verificationChallenge, verifyMetaSignature } from "@/lib/channels/meta/webhook";
 import { ingestMetaInbound } from "@/lib/channels/meta/ingest";
 import { metaSessionByWebhookToken } from "@/lib/channels/meta/session";
+import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +86,9 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
   }
 
   const eventos = parseMetaWebhook(envelope as Parameters<typeof parseMetaWebhook>[0]);
+  const campos = (envelope as { entry?: Array<{ changes?: Array<{ field?: string }> }> }).entry
+    ?.flatMap((entry) => entry.changes ?? [])
+    .map((change) => change.field ?? "unknown") ?? [];
   const admin = createAdminClient();
   const now = new Date().toISOString();
   const desfechos: string[] = [];
@@ -121,6 +125,15 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
         .eq("external_id", e.externalId);
     }
   }
+
+  logger.info("[meta.webhook] evento processado", {
+    campos,
+    eventos: eventos.length,
+    direcoes: eventos
+      .filter((evento) => evento.kind === "inbound_message")
+      .map((evento) => evento.direction ?? "inbound"),
+    desfechos,
+  });
 
   // 200 SEMPRE que a assinatura confere, inclusive para evento que não nos
   // interessa: a Meta re-entrega tudo que não recebe 2xx, e recusar o que
