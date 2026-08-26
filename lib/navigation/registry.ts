@@ -201,6 +201,14 @@ export const NAV_DESTINATIONS: NavDestination[] = [
     sidebar: true,
   },
   {
+  {
+    href: "/app/leads/importar",
+    label: "Importar leads",
+    description: "Importe leads do Kommo e escolha o funil e a etapa de destino.",
+    icon: UploadSimple,
+    group: "crm",
+    sidebar: true,
+  },
     href: "/app/tasks",
     label: "Tarefas & Agendamentos",
     description: "Lista e calendÃ¡rio unificado de tarefas internas e agendamentos de consultas com data e horÃ¡rio.",
