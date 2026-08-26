@@ -209,6 +209,7 @@ export const NAV_DESTINATIONS: NavDestination[] = [
     group: "crm",
     sidebar: true,
   },
+  {
     href: "/app/tasks",
     label: "Tarefas & Agendamentos",
     description: "Lista e calendÃƒÂ¡rio unificado de tarefas internas e agendamentos de consultas com data e horÃƒÂ¡rio.",
