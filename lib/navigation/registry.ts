@@ -41,18 +41,18 @@ import {
 } from "@/lib/ui/icons";
 
 /**
- * Registro de navegaÃ§Ã£o â€” a ÃšNICA lista de destinos do app do tenant.
+ * Registro de navegaÃƒÂ§ÃƒÂ£o Ã¢â‚¬â€ a ÃƒÅ¡NICA lista de destinos do app do tenant.
  *
- * Antes disto, trÃªs listas descreviam o mesmo conjunto e divergiam: `NAV_ITEMS`
- * no Sidebar, `LINKS` no hub de ConfiguraÃ§Ãµes e `TABS` na Ã¡rea de IA. Sete telas
- * sÃ³ eram alcanÃ§Ã¡veis por dentro da prÃ³pria seÃ§Ã£o e uma nÃ£o tinha link nenhum.
+ * Antes disto, trÃƒÂªs listas descreviam o mesmo conjunto e divergiam: `NAV_ITEMS`
+ * no Sidebar, `LINKS` no hub de ConfiguraÃƒÂ§ÃƒÂµes e `TABS` na ÃƒÂ¡rea de IA. Sete telas
+ * sÃƒÂ³ eram alcanÃƒÂ§ÃƒÂ¡veis por dentro da prÃƒÂ³pria seÃƒÂ§ÃƒÂ£o e uma nÃƒÂ£o tinha link nenhum.
  *
- * Sidebar, hubs e a paleta âŒ˜K sÃ£o PROJEÃ‡Ã•ES puras deste array â€” nenhum deles
- * decide o que existe, sÃ³ desenha o que sai daqui. Tela nova aparece nos trÃªs
- * sem editar trÃªs arquivos, e `tests/unit/navegacao-completude.test.ts` reprova
+ * Sidebar, hubs e a paleta Ã¢Å’ËœK sÃƒÂ£o PROJEÃƒâ€¡Ãƒâ€¢ES puras deste array Ã¢â‚¬â€ nenhum deles
+ * decide o que existe, sÃƒÂ³ desenha o que sai daqui. Tela nova aparece nos trÃƒÂªs
+ * sem editar trÃƒÂªs arquivos, e `tests/unit/navegacao-completude.test.ts` reprova
  * o CI se uma rota nascer fora daqui.
  *
- * Doutrina: docs/doctrine/sistema-vivo.md â€” "por qual porta se chega atÃ© mim?"
+ * Doutrina: docs/doctrine/sistema-vivo.md Ã¢â‚¬â€ "por qual porta se chega atÃƒÂ© mim?"
  */
 
 export type NavGroupId = "atendimento" | "crm" | "ia" | "canais" | "analise" | "organizacao";
@@ -62,9 +62,9 @@ export interface NavGroup {
   label: string;
   /**
    * Hub do grupo, quando ele tem telas demais para caber no sidebar.
-   * O rÃ³tulo Ã© declarado junto do href porque nÃ£o Ã© derivÃ¡vel: "Ver tudo em IA"
-   * Ã© Ãºtil, "Ver tudo em OrganizaÃ§Ã£o" seria gratuito quando a tela jÃ¡ se chama
-   * ConfiguraÃ§Ãµes e o usuÃ¡rio a conhece por esse nome.
+   * O rÃƒÂ³tulo ÃƒÂ© declarado junto do href porque nÃƒÂ£o ÃƒÂ© derivÃƒÂ¡vel: "Ver tudo em IA"
+   * ÃƒÂ© ÃƒÂºtil, "Ver tudo em OrganizaÃƒÂ§ÃƒÂ£o" seria gratuito quando a tela jÃƒÂ¡ se chama
+   * ConfiguraÃƒÂ§ÃƒÂµes e o usuÃƒÂ¡rio a conhece por esse nome.
    */
   hub?: { href: string; label: string };
 }
@@ -72,30 +72,30 @@ export interface NavGroup {
 export interface NavDestination {
   href: string;
   label: string;
-  /** Aparece no card do hub e Ã© texto buscÃ¡vel no âŒ˜K. Nunca vazio. */
+  /** Aparece no card do hub e ÃƒÂ© texto buscÃƒÂ¡vel no Ã¢Å’ËœK. Nunca vazio. */
   description: string;
   icon: PhosphorIcon;
   group: NavGroupId;
-  /** ObrigatÃ³ria em grupo com hub â€” Ã© o agrupamento por jornada dentro dele. */
+  /** ObrigatÃƒÂ³ria em grupo com hub Ã¢â‚¬â€ ÃƒÂ© o agrupamento por jornada dentro dele. */
   section?: string;
   /** Ausente = viewer. Ver a regra de escolha abaixo. */
   minRole?: Role;
-  /** Ausente = sÃ³ no hub. `true` = uso diÃ¡rio, sobe para o sidebar. */
+  /** Ausente = sÃƒÂ³ no hub. `true` = uso diÃƒÂ¡rio, sobe para o sidebar. */
   sidebar?: boolean;
   healthDot?: boolean;
 }
 
 /**
  * Grupos por OBJETIVO, na ordem de uso: o que se abre toda hora primeiro, o que
- * se ajusta uma vez por mÃªs por Ãºltimo.
+ * se ajusta uma vez por mÃƒÂªs por ÃƒÂºltimo.
  *
- * "AnÃ¡lise" e nÃ£o "Observabilidade": quem instala isto numa VPS Ã© dono de PME,
- * nÃ£o engenheiro. E configurar o sistema (grupo IA) Ã© atividade diferente de
- * observar o sistema funcionando (grupo AnÃ¡lise) â€” por isso EvoluÃ§Ã£o da IA mora
- * aqui, e nÃ£o junto dos agentes.
+ * "AnÃƒÂ¡lise" e nÃƒÂ£o "Observabilidade": quem instala isto numa VPS ÃƒÂ© dono de PME,
+ * nÃƒÂ£o engenheiro. E configurar o sistema (grupo IA) ÃƒÂ© atividade diferente de
+ * observar o sistema funcionando (grupo AnÃƒÂ¡lise) Ã¢â‚¬â€ por isso EvoluÃƒÂ§ÃƒÂ£o da IA mora
+ * aqui, e nÃƒÂ£o junto dos agentes.
  *
- * Hub sÃ³ onde o grupo passa de 4 telas. Abaixo disso ele cabe inteiro no
- * sidebar, e um hub de 3 itens seria sÃ³ um clique a mais para chegar onde jÃ¡
+ * Hub sÃƒÂ³ onde o grupo passa de 4 telas. Abaixo disso ele cabe inteiro no
+ * sidebar, e um hub de 3 itens seria sÃƒÂ³ um clique a mais para chegar onde jÃƒÂ¡
  * dava para chegar.
  */
 export const NAV_GROUPS: NavGroup[] = [
@@ -103,44 +103,44 @@ export const NAV_GROUPS: NavGroup[] = [
   { id: "crm", label: "CRM" },
   { id: "ia", label: "Agente de IA", hub: { href: "/app/ai", label: "Ver tudo em IA" } },
   { id: "canais", label: "Canais" },
-  { id: "analise", label: "AnÃ¡lise" },
+  { id: "analise", label: "AnÃƒÂ¡lise" },
   {
     id: "organizacao",
-    label: "OrganizaÃ§Ã£o",
-    hub: { href: "/app/settings", label: "ConfiguraÃ§Ãµes" },
+    label: "OrganizaÃƒÂ§ÃƒÂ£o",
+    hub: { href: "/app/settings", label: "ConfiguraÃƒÂ§ÃƒÂµes" },
   },
 ];
 
 /**
- * Grupo cujo hub vive no RODAPÃ‰ fixo do sidebar, fora da Ã¡rea que rola.
+ * Grupo cujo hub vive no RODAPÃƒâ€° fixo do sidebar, fora da ÃƒÂ¡rea que rola.
  *
- * Medido em tela (1280Ã—768, o notebook comum): com todos os grupos na Ã¡rea
- * rolÃ¡vel, o conteÃºdo dava 1019px contra 663px visÃ­veis â€” ConfiguraÃ§Ãµes ficava
- * fora da dobra em TODAS as alturas testadas, inclusive 1080px. Ã‰ o item que
- * mais se procura quando nÃ£o se acha algo; deixÃ¡-lo dependendo de scroll
- * recriaria, em outra forma, o problema que esta reorganizaÃ§Ã£o veio resolver.
+ * Medido em tela (1280Ãƒâ€”768, o notebook comum): com todos os grupos na ÃƒÂ¡rea
+ * rolÃƒÂ¡vel, o conteÃƒÂºdo dava 1019px contra 663px visÃƒÂ­veis Ã¢â‚¬â€ ConfiguraÃƒÂ§ÃƒÂµes ficava
+ * fora da dobra em TODAS as alturas testadas, inclusive 1080px. Ãƒâ€° o item que
+ * mais se procura quando nÃƒÂ£o se acha algo; deixÃƒÂ¡-lo dependendo de scroll
+ * recriaria, em outra forma, o problema que esta reorganizaÃƒÂ§ÃƒÂ£o veio resolver.
  */
 export const GRUPO_NO_RODAPE: NavGroupId = "organizacao";
 
 /**
- * Como `minRole` foi escolhido â€” medido tela a tela, nÃ£o estimado:
+ * Como `minRole` foi escolhido Ã¢â‚¬â€ medido tela a tela, nÃƒÂ£o estimado:
  *
- *   1. A pÃ¡gina redireciona por papel?  â†’ usa esse papel. Assim a navegaÃ§Ã£o
+ *   1. A pÃƒÂ¡gina redireciona por papel?  Ã¢â€ â€™ usa esse papel. Assim a navegaÃƒÂ§ÃƒÂ£o
  *      nunca mostra um link que morre em /403.
- *   2. NÃ£o redireciona, mas a navegaÃ§Ã£o antiga jÃ¡ filtrava? â†’ mantÃ©m o filtro
- *      antigo, para esta mudanÃ§a reorganizar sem alterar quem vÃª o quÃª.
- *   3. Nenhum dos dois â†’ viewer.
+ *   2. NÃƒÂ£o redireciona, mas a navegaÃƒÂ§ÃƒÂ£o antiga jÃƒÂ¡ filtrava? Ã¢â€ â€™ mantÃƒÂ©m o filtro
+ *      antigo, para esta mudanÃƒÂ§a reorganizar sem alterar quem vÃƒÂª o quÃƒÂª.
+ *   3. Nenhum dos dois Ã¢â€ â€™ viewer.
  *
- * `ROLE_RANK` sÃ³ distingue papel dentro do tenant; capacidade interna da tela
- * (`canShare` em Respostas rÃ¡pidas, `canCompare` em Desempenho) NÃƒO Ã© porta
- * fechada e por isso nÃ£o vira `minRole`.
+ * `ROLE_RANK` sÃƒÂ³ distingue papel dentro do tenant; capacidade interna da tela
+ * (`canShare` em Respostas rÃƒÂ¡pidas, `canCompare` em Desempenho) NÃƒÆ’O ÃƒÂ© porta
+ * fechada e por isso nÃƒÂ£o vira `minRole`.
  */
 export const NAV_DESTINATIONS: NavDestination[] = [
-  // ---- Atendimento â€” onde o operador passa o dia ----
+  // ---- Atendimento Ã¢â‚¬â€ onde o operador passa o dia ----
   {
     href: "/app/dashboard",
     label: "Dashboard",
-    description: "VisÃ£o geral da operaÃ§Ã£o: conversas ativas, contatos, volume de negÃ³cios e tempo de resposta.",
+    description: "VisÃƒÂ£o geral da operaÃƒÂ§ÃƒÂ£o: conversas ativas, contatos, volume de negÃƒÂ³cios e tempo de resposta.",
     icon: Gauge,
     group: "atendimento",
     sidebar: true,
@@ -148,7 +148,7 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/inbox",
     label: "Inbox",
-    description: "As conversas de WhatsApp, com vocÃª e a IA atendendo lado a lado.",
+    description: "As conversas de WhatsApp, com vocÃƒÂª e a IA atendendo lado a lado.",
     icon: Inbox,
     group: "atendimento",
     sidebar: true,
@@ -156,38 +156,38 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/radar",
     label: "Radar",
-    description: "Quem esfriou e ainda estÃ¡ aberto â€” o que corre risco de morrer sem resposta.",
+    description: "Quem esfriou e ainda estÃƒÂ¡ aberto Ã¢â‚¬â€ o que corre risco de morrer sem resposta.",
     icon: ClockCountdown,
     group: "atendimento",
     sidebar: true,
   },
   {
-    // Renomeado de "Templates": estes sÃ£o scripts do atendente, consumidos pelo
+    // Renomeado de "Templates": estes sÃƒÂ£o scripts do atendente, consumidos pelo
     // Composer do inbox. O nome "Templates" fica livre para os da Meta (HSM),
-    // onde Ã© o termo tÃ©cnico correto.
+    // onde ÃƒÂ© o termo tÃƒÂ©cnico correto.
     href: "/app/templates",
-    label: "Respostas rÃ¡pidas",
-    description: "Scripts salvos para responder mais rÃ¡pido, seus ou da equipe.",
+    label: "Respostas rÃƒÂ¡pidas",
+    description: "Scripts salvos para responder mais rÃƒÂ¡pido, seus ou da equipe.",
     icon: FileText,
     group: "atendimento",
     sidebar: true,
   },
 
-  // ---- CRM â€” o funil ----
+  // ---- CRM Ã¢â‚¬â€ o funil ----
   {
-    // âš ï¸ ERA "Kanban", e a URL continua sendo. O nome saiu da interface porque o
-    // produto tinha CINCO vocabulÃ¡rios para a mesma coisa â€” "Kanban" no menu,
-    // "Pipelines" no tÃ­tulo desta tela, "Funis" no menu ao lado, "funil" em todo
-    // o corpo dela e "quadro" no onboarding inteiro. TrÃªs deles no mesmo
+    // Ã¢Å¡Â Ã¯Â¸Â ERA "Kanban", e a URL continua sendo. O nome saiu da interface porque o
+    // produto tinha CINCO vocabulÃƒÂ¡rios para a mesma coisa Ã¢â‚¬â€ "Kanban" no menu,
+    // "Pipelines" no tÃƒÂ­tulo desta tela, "Funis" no menu ao lado, "funil" em todo
+    // o corpo dela e "quadro" no onboarding inteiro. TrÃƒÂªs deles no mesmo
     // viewport: o <h1> dizia "Pipelines", o estado vazio dizia "Sem pipelines
-    // configurados" e o botÃ£o embaixo dizia "Criar meu primeiro funil".
+    // configurados" e o botÃƒÂ£o embaixo dizia "Criar meu primeiro funil".
     //
-    // Ficou "Funis" porque Ã© o que esta tela Ã‰: a lista dos funis, de onde se
-    // abre o quadro de cada um. "Pipeline" Ã© palavra de quem construiu o
-    // sistema; "funil de vendas" Ã© palavra de quem vende.
+    // Ficou "Funis" porque ÃƒÂ© o que esta tela Ãƒâ€°: a lista dos funis, de onde se
+    // abre o quadro de cada um. "Pipeline" ÃƒÂ© palavra de quem construiu o
+    // sistema; "funil de vendas" ÃƒÂ© palavra de quem vende.
     href: "/app/kanban",
     label: "Funis",
-    description: "Seus funis de venda â€” clique em um para abrir o quadro de clientes.",
+    description: "Seus funis de venda Ã¢â‚¬â€ clique em um para abrir o quadro de clientes.",
     icon: Kanban,
     group: "crm",
     sidebar: true,
@@ -195,7 +195,7 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/contacts",
     label: "Contatos",
-    description: "As pessoas do outro lado da conversa e seu histÃ³rico.",
+    description: "As pessoas do outro lado da conversa e seu histÃƒÂ³rico.",
     icon: Users,
     group: "crm",
     sidebar: true,
@@ -211,34 +211,34 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   },
     href: "/app/tasks",
     label: "Tarefas & Agendamentos",
-    description: "Lista e calendÃ¡rio unificado de tarefas internas e agendamentos de consultas com data e horÃ¡rio.",
+    description: "Lista e calendÃƒÂ¡rio unificado de tarefas internas e agendamentos de consultas com data e horÃƒÂ¡rio.",
     icon: CheckSquare,
     group: "crm",
     sidebar: true,
   },
   {
-    // Estava enterrado em ConfiguraÃ§Ãµes e ninguÃ©m sabia que existia â€” o achado
-    // que originou esta reorganizaÃ§Ã£o. A URL nÃ£o muda; sÃ³ o lugar na navegaÃ§Ã£o.
+    // Estava enterrado em ConfiguraÃƒÂ§ÃƒÂµes e ninguÃƒÂ©m sabia que existia Ã¢â‚¬â€ o achado
+    // que originou esta reorganizaÃƒÂ§ÃƒÂ£o. A URL nÃƒÂ£o muda; sÃƒÂ³ o lugar na navegaÃƒÂ§ÃƒÂ£o.
     //
-    // âš ï¸ ERA "Funis", nome que ele DISPUTAVA com o destino acima: os dois
+    // Ã¢Å¡Â Ã¯Â¸Â ERA "Funis", nome que ele DISPUTAVA com o destino acima: os dois
     // listavam as mesmas linhas de `crm_pipelines`, lado a lado no mesmo grupo,
-    // com nomes que nÃ£o diziam qual servia para quÃª. A diferenÃ§a real Ã© o VERBO,
-    // e Ã© ela que o nome carrega agora: lÃ¡ se ABRE o funil, aqui se CONFIGURA o
+    // com nomes que nÃƒÂ£o diziam qual servia para quÃƒÂª. A diferenÃƒÂ§a real ÃƒÂ© o VERBO,
+    // e ÃƒÂ© ela que o nome carrega agora: lÃƒÂ¡ se ABRE o funil, aqui se CONFIGURA o
     // que ele significa.
     href: "/app/settings/tenant/pipelines",
     label: "Etapas do funil",
-    description: "As colunas de cada funil, o vocabulÃ¡rio do negÃ³cio e os motivos de perda.",
+    description: "As colunas de cada funil, o vocabulÃƒÂ¡rio do negÃƒÂ³cio e os motivos de perda.",
     icon: Funnel,
     group: "crm",
     minRole: "manager",
     sidebar: true,
   },
 
-  // ---- Agente de IA â€” montar, ensinar, acompanhar ----
+  // ---- Agente de IA Ã¢â‚¬â€ montar, ensinar, acompanhar ----
   {
     href: "/app/ai/agents",
     label: "Agentes",
-    description: "Quem atende por vocÃª: instruÃ§Ãµes, modelo, ferramentas e publicaÃ§Ã£o.",
+    description: "Quem atende por vocÃƒÂª: instruÃƒÂ§ÃƒÂµes, modelo, ferramentas e publicaÃƒÂ§ÃƒÂ£o.",
     icon: Robot,
     group: "ia",
     section: "Montar o agente",
@@ -248,7 +248,7 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/ai/followups",
     label: "Follow-ups",
-    description: "Como o agente retoma uma conversa que esfriou, para nenhuma morrer no silÃªncio.",
+    description: "Como o agente retoma uma conversa que esfriou, para nenhuma morrer no silÃƒÂªncio.",
     icon: FlowArrow,
     group: "ia",
     section: "Montar o agente",
@@ -275,26 +275,26 @@ export const NAV_DESTINATIONS: NavDestination[] = [
     minRole: "manager",
   },
   {
-    // O sistema chama modelo em 23 lugares e, atÃ© esta tela, a escolha vivia
-    // espalhada por trÃªs pilhas de cÃ³digo e sete variÃ¡veis de ambiente â€” nÃ£o
+    // O sistema chama modelo em 23 lugares e, atÃƒÂ© esta tela, a escolha vivia
+    // espalhada por trÃƒÂªs pilhas de cÃƒÂ³digo e sete variÃƒÂ¡veis de ambiente Ã¢â‚¬â€ nÃƒÂ£o
     // havia onde responder "quem usa IA aqui, e com qual chave?".
     href: "/app/ai/providers",
     label: "Provedores",
-    description: "Qual inteligÃªncia atende cada parte do sistema â€” e o que acontece se ela falhar.",
+    description: "Qual inteligÃƒÂªncia atende cada parte do sistema Ã¢â‚¬â€ e o que acontece se ela falhar.",
     icon: Plugs,
     group: "ia",
     section: "Montar o agente",
     minRole: "manager",
     // SEM `sidebar: true`, como as outras nove telas deste grupo. Adicionar as
-    // duas telas novas Ã  sidebar estourou a dobra em 900px â€” medido pelo e2e
+    // duas telas novas ÃƒÂ  sidebar estourou a dobra em 900px Ã¢â‚¬â€ medido pelo e2e
     // `navegacao.spec.ts`, que existe justamente porque agrupar o menu o faz
-    // crescer. Configurar provedor Ã© tarefa de poucas vezes; o caminho Ã© o hub
-    // "Ver tudo em IA", igual a Credenciais, Conhecimento, MemÃ³ria e Skills.
+    // crescer. Configurar provedor ÃƒÂ© tarefa de poucas vezes; o caminho ÃƒÂ© o hub
+    // "Ver tudo em IA", igual a Credenciais, Conhecimento, MemÃƒÂ³ria e Skills.
   },
   {
     href: "/app/ai/knowledge/sources",
     label: "Conhecimento",
-    description: "Os materiais que o agente consulta antes de responder sobre o seu negÃ³cio.",
+    description: "Os materiais que o agente consulta antes de responder sobre o seu negÃƒÂ³cio.",
     icon: BookOpen,
     group: "ia",
     section: "Ensinar o agente",
@@ -302,8 +302,8 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   },
   {
     href: "/app/ai/memory",
-    label: "MemÃ³ria",
-    description: "O que o agente jÃ¡ aprendeu sobre a sua operaÃ§Ã£o e reaproveita.",
+    label: "MemÃƒÂ³ria",
+    description: "O que o agente jÃƒÂ¡ aprendeu sobre a sua operaÃƒÂ§ÃƒÂ£o e reaproveita.",
     icon: Brain,
     group: "ia",
     section: "Ensinar o agente",
@@ -312,7 +312,7 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/ai/skills",
     label: "Skills",
-    description: "As aÃ§Ãµes que o agente pode executar sozinho durante o atendimento.",
+    description: "As aÃƒÂ§ÃƒÂµes que o agente pode executar sozinho durante o atendimento.",
     icon: PuzzlePiece,
     group: "ia",
     section: "Ensinar o agente",
@@ -321,7 +321,7 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/ai/cases",
     label: "Casos",
-    description: "Os atendimentos que o agente conduziu, do inÃ­cio ao desfecho.",
+    description: "Os atendimentos que o agente conduziu, do inÃƒÂ­cio ao desfecho.",
     icon: ClipboardText,
     group: "ia",
     section: "Acompanhar o agente",
@@ -330,56 +330,56 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/ai/inbox",
     label: "Alertas",
-    description: "O que a IA encontrou e precisa de uma decisÃ£o sua.",
+    description: "O que a IA encontrou e precisa de uma decisÃƒÂ£o sua.",
     icon: Flag,
     group: "ia",
     section: "Acompanhar o agente",
   },
   {
-    // Ã“rfÃ£: nenhum lugar do app linkava para cÃ¡. O flywheel gerava propostas de
-    // melhoria do agente e a fila sÃ³ era vista por quem soubesse a URL.
+    // Ãƒâ€œrfÃƒÂ£: nenhum lugar do app linkava para cÃƒÂ¡. O flywheel gerava propostas de
+    // melhoria do agente e a fila sÃƒÂ³ era vista por quem soubesse a URL.
     href: "/app/ai/proposals",
     label: "Propostas",
-    description: "Melhorias que a IA sugere para si mesma, esperando sua decisÃ£o.",
+    description: "Melhorias que a IA sugere para si mesma, esperando sua decisÃƒÂ£o.",
     icon: Lightbulb,
     group: "ia",
     section: "Acompanhar o agente",
   },
   {
-    // A tela de Uso responde "quanto gastei". Esta responde a pergunta que nÃ£o
+    // A tela de Uso responde "quanto gastei". Esta responde a pergunta que nÃƒÂ£o
     // tinha lugar nenhum: "o agente parou de responder, o que aconteceu?".
-    // Antes da migration 0128 ela seria impossÃ­vel de construir com honestidade
-    // â€” llm_calls sÃ³ registrava sucesso.
+    // Antes da migration 0128 ela seria impossÃƒÂ­vel de construir com honestidade
+    // Ã¢â‚¬â€ llm_calls sÃƒÂ³ registrava sucesso.
     href: "/app/ai/runs",
-    label: "ExecuÃ§Ãµes",
-    description: "O que a IA fez â€” e, quando falhou, o que aconteceu e o que fazer.",
+    label: "ExecuÃƒÂ§ÃƒÂµes",
+    description: "O que a IA fez Ã¢â‚¬â€ e, quando falhou, o que aconteceu e o que fazer.",
     icon: ListChecks,
     group: "ia",
     section: "Acompanhar o agente",
     minRole: "manager",
-    // Idem: fora da sidebar para o menu nÃ£o passar da dobra. Quem vem para cÃ¡
-    // estÃ¡ diagnosticando, e chega pelo hub ou pelo link do aviso na Central.
+    // Idem: fora da sidebar para o menu nÃƒÂ£o passar da dobra. Quem vem para cÃƒÂ¡
+    // estÃƒÂ¡ diagnosticando, e chega pelo hub ou pelo link do aviso na Central.
   },
   {
     href: "/app/ai/usage",
-    label: "Uso e orÃ§amento",
-    description: "Quanto a IA consumiu e qual Ã© o teto de gasto do mÃªs.",
+    label: "Uso e orÃƒÂ§amento",
+    description: "Quanto a IA consumiu e qual ÃƒÂ© o teto de gasto do mÃƒÂªs.",
     icon: Gauge,
     group: "ia",
     section: "Acompanhar o agente",
     minRole: "manager",
   },
 
-  // ---- Canais â€” por onde as mensagens entram e saem ----
+  // ---- Canais Ã¢â‚¬â€ por onde as mensagens entram e saem ----
   {
     href: "/app/connections",
-    label: "ConexÃµes",
-    // Cobre os DOIS caminhos desde o PR #105: nÃºmero por QR e canal oficial da
-    // Meta (com os templates dele), cada um numa aba. A descriÃ§Ã£o cita "oficial"
-    // e "Meta" de propÃ³sito â€” Ã© por esses nomes que se procura no âŒ˜K, e a busca
-    // varre a descriÃ§Ã£o alÃ©m do rÃ³tulo.
+    label: "ConexÃƒÂµes",
+    // Cobre os DOIS caminhos desde o PR #105: nÃƒÂºmero por QR e canal oficial da
+    // Meta (com os templates dele), cada um numa aba. A descriÃƒÂ§ÃƒÂ£o cita "oficial"
+    // e "Meta" de propÃƒÂ³sito Ã¢â‚¬â€ ÃƒÂ© por esses nomes que se procura no Ã¢Å’ËœK, e a busca
+    // varre a descriÃƒÂ§ÃƒÂ£o alÃƒÂ©m do rÃƒÂ³tulo.
     description:
-      "Seus nÃºmeros de WhatsApp: por QR ou canal oficial da Meta, com saÃºde, reconexÃ£o e templates.",
+      "Seus nÃƒÂºmeros de WhatsApp: por QR ou canal oficial da Meta, com saÃƒÂºde, reconexÃƒÂ£o e templates.",
     icon: PlugsConnected,
     group: "canais",
     minRole: "admin",
@@ -397,11 +397,11 @@ export const NAV_DESTINATIONS: NavDestination[] = [
     sidebar: true,
   },
 
-  // ---- AnÃ¡lise â€” olhar o sistema funcionando ----
+  // ---- AnÃƒÂ¡lise Ã¢â‚¬â€ olhar o sistema funcionando ----
   {
     href: "/app/activities",
-    label: "RelatÃ³rio de Atividades",
-    description: "Linha do tempo e mÃ©tricas de tarefas concluÃ­das, atendimentos e aÃ§Ãµes realizadas.",
+    label: "RelatÃƒÂ³rio de Atividades",
+    description: "Linha do tempo e mÃƒÂ©tricas de tarefas concluÃƒÂ­das, atendimentos e aÃƒÂ§ÃƒÂµes realizadas.",
     icon: ListChecks,
     group: "analise",
     sidebar: true,
@@ -409,16 +409,16 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/metrics",
     label: "Desempenho",
-    description: "Funil e performance por atendente nos Ãºltimos 30 dias.",
+    description: "Funil e performance por atendente nos ÃƒÂºltimos 30 dias.",
     icon: ChartBar,
     group: "analise",
     sidebar: true,
   },
   {
-    // Observabilidade, nÃ£o configuraÃ§Ã£o: por isso nÃ£o fica junto dos agentes.
+    // Observabilidade, nÃƒÂ£o configuraÃƒÂ§ÃƒÂ£o: por isso nÃƒÂ£o fica junto dos agentes.
     href: "/app/ai/evolution",
-    label: "EvoluÃ§Ã£o da IA",
-    description: "Se o agente estÃ¡ melhorando, onde ele erra e o que falta ensinar.",
+    label: "EvoluÃƒÂ§ÃƒÂ£o da IA",
+    description: "Se o agente estÃƒÂ¡ melhorando, onde ele erra e o que falta ensinar.",
     icon: ChartLineUp,
     group: "analise",
     minRole: "manager",
@@ -427,34 +427,34 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/audit",
     label: "Audit Log",
-    description: "Quem fez o quÃª, quando â€” o histÃ³rico que nÃ£o se apaga.",
+    description: "Quem fez o quÃƒÂª, quando Ã¢â‚¬â€ o histÃƒÂ³rico que nÃƒÂ£o se apaga.",
     icon: ClockCounterClockwise,
     group: "analise",
     minRole: "manager",
     sidebar: true,
   },
 
-  // ---- OrganizaÃ§Ã£o â€” conta, empresa, acesso ----
+  // ---- OrganizaÃƒÂ§ÃƒÂ£o Ã¢â‚¬â€ conta, empresa, acesso ----
   {
     href: "/app/settings/profile",
     label: "Perfil",
-    description: "Seu nome, idioma, fuso horÃ¡rio e avatar.",
+    description: "Seu nome, idioma, fuso horÃƒÂ¡rio e avatar.",
     icon: UserCircle,
     group: "organizacao",
     section: "Sua conta",
   },
   {
     href: "/app/settings/security",
-    label: "SeguranÃ§a",
-    description: "VerificaÃ§Ã£o em duas etapas, cÃ³digos de recuperaÃ§Ã£o e sessÃµes.",
+    label: "SeguranÃƒÂ§a",
+    description: "VerificaÃƒÂ§ÃƒÂ£o em duas etapas, cÃƒÂ³digos de recuperaÃƒÂ§ÃƒÂ£o e sessÃƒÂµes.",
     icon: ShieldCheck,
     group: "organizacao",
     section: "Sua conta",
   },
   {
     href: "/app/settings/notifications",
-    label: "NotificaÃ§Ãµes",
-    description: "Por onde e sobre o quÃª vocÃª quer ser avisado.",
+    label: "NotificaÃƒÂ§ÃƒÂµes",
+    description: "Por onde e sobre o quÃƒÂª vocÃƒÂª quer ser avisado.",
     icon: Bell,
     group: "organizacao",
     section: "Sua conta",
@@ -468,11 +468,11 @@ export const NAV_DESTINATIONS: NavDestination[] = [
     section: "Sua empresa",
   },
   {
-    // A porta que faltava (issue #144): rodÃ­zio de atendimento e restriÃ§Ã£o de
-    // visibilidade existiam inteiros no backend e nÃ£o tinham NENHUMA tela â€” sÃ³
-    // dava para ligar com UPDATE Ã  mÃ£o no banco.
+    // A porta que faltava (issue #144): rodÃƒÂ­zio de atendimento e restriÃƒÂ§ÃƒÂ£o de
+    // visibilidade existiam inteiros no backend e nÃƒÂ£o tinham NENHUMA tela Ã¢â‚¬â€ sÃƒÂ³
+    // dava para ligar com UPDATE ÃƒÂ  mÃƒÂ£o no banco.
     href: "/app/settings/atendimento",
-    label: "DistribuiÃ§Ã£o de atendimento",
+    label: "DistribuiÃƒÂ§ÃƒÂ£o de atendimento",
     description: "Quem recebe cada cliente novo, e o que cada atendente enxerga.",
     icon: UsersThree,
     group: "organizacao",
@@ -481,8 +481,8 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   },
   {
     href: "/app/settings/tenant",
-    label: "OrganizaÃ§Ã£o",
-    description: "Dados da empresa, retenÃ§Ã£o de dados e encarregado de LGPD.",
+    label: "OrganizaÃƒÂ§ÃƒÂ£o",
+    description: "Dados da empresa, retenÃƒÂ§ÃƒÂ£o de dados e encarregado de LGPD.",
     icon: Buildings,
     group: "organizacao",
     section: "Sua empresa",
@@ -491,7 +491,7 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/settings/cadastros",
     label: "Procedimentos, Tags & Fontes",
-    description: "CatÃ¡logo de procedimentos da clÃ­nica, tags dos cards e fontes de captaÃ§Ã£o de pacientes.",
+    description: "CatÃƒÂ¡logo de procedimentos da clÃƒÂ­nica, tags dos cards e fontes de captaÃƒÂ§ÃƒÂ£o de pacientes.",
     icon: ListPlus,
     group: "organizacao",
     section: "Sua empresa",
@@ -504,18 +504,18 @@ export const NAV_DESTINATIONS: NavDestination[] = [
     icon: Palette,
     group: "organizacao",
     section: "Sua empresa",
-    // `admin` pelo mesmo motivo da linha de cima: o que se edita ali Ã©
-    // identidade da empresa, e dÃ¡-lo a `manager` o colocaria abaixo de billing e
+    // `admin` pelo mesmo motivo da linha de cima: o que se edita ali ÃƒÂ©
+    // identidade da empresa, e dÃƒÂ¡-lo a `manager` o colocaria abaixo de billing e
     // de API tokens na mesma prancheta.
     minRole: "admin",
-    // SEM `sidebar`: fica sÃ³ no hub. Trocar a marca Ã© tarefa de uma vez, e
-    // agrupar o menu jÃ¡ o fez crescer â€” duas telas a mais estouraram a dobra em
+    // SEM `sidebar`: fica sÃƒÂ³ no hub. Trocar a marca ÃƒÂ© tarefa de uma vez, e
+    // agrupar o menu jÃƒÂ¡ o fez crescer Ã¢â‚¬â€ duas telas a mais estouraram a dobra em
     // 900px, medido pelo e2e `navegacao.spec.ts`.
   },
   {
     href: "/app/settings/billing",
     label: "Billing",
-    description: "Plano e cobranÃ§a.",
+    description: "Plano e cobranÃƒÂ§a.",
     icon: Receipt,
     group: "organizacao",
     section: "Sua empresa",
@@ -524,7 +524,7 @@ export const NAV_DESTINATIONS: NavDestination[] = [
   {
     href: "/app/lgpd/requests",
     label: "LGPD",
-    description: "Pedidos de exportaÃ§Ã£o e exclusÃ£o de dados feitos por clientes.",
+    description: "Pedidos de exportaÃƒÂ§ÃƒÂ£o e exclusÃƒÂ£o de dados feitos por clientes.",
     icon: ScalesSimple,
     group: "organizacao",
     section: "Dados e acesso",
@@ -542,11 +542,11 @@ export const NAV_DESTINATIONS: NavDestination[] = [
 ];
 
 /**
- * Ãšnico ponto de decisÃ£o de permissÃ£o da navegaÃ§Ã£o.
+ * ÃƒÅ¡nico ponto de decisÃƒÂ£o de permissÃƒÂ£o da navegaÃƒÂ§ÃƒÂ£o.
  *
- * Ã‰ o que dispensa os sete `usePermission()` que o Sidebar chamava em sequÃªncia
- * â€” hooks nÃ£o rodam em laÃ§o condicional, entÃ£o cada permissÃ£o exigia sua linha.
- * Como funÃ§Ã£o pura, um `.filter()` resolve todas.
+ * Ãƒâ€° o que dispensa os sete `usePermission()` que o Sidebar chamava em sequÃƒÂªncia
+ * Ã¢â‚¬â€ hooks nÃƒÂ£o rodam em laÃƒÂ§o condicional, entÃƒÂ£o cada permissÃƒÂ£o exigia sua linha.
+ * Como funÃƒÂ§ÃƒÂ£o pura, um `.filter()` resolve todas.
  */
 export function canSee(d: NavDestination, isPlatformAdmin: boolean, role: Role | null): boolean {
   if (isPlatformAdmin) return true;
@@ -554,7 +554,7 @@ export function canSee(d: NavDestination, isPlatformAdmin: boolean, role: Role |
   return ROLE_RANK[role] >= ROLE_RANK[d.minRole ?? "viewer"];
 }
 
-/** ProjeÃ§Ã£o do sidebar: sÃ³ o uso diÃ¡rio, agrupado, sem grupo vazio. */
+/** ProjeÃƒÂ§ÃƒÂ£o do sidebar: sÃƒÂ³ o uso diÃƒÂ¡rio, agrupado, sem grupo vazio. */
 export function sidebarGroups(
   isPlatformAdmin: boolean,
   role: Role | null,
@@ -568,11 +568,11 @@ export function sidebarGroups(
 }
 
 /**
- * ProjeÃ§Ã£o do hub: TODAS as telas do grupo â€” inclusive as que jÃ¡ estÃ£o no
- * sidebar. O hub Ã© inventÃ¡rio, nÃ£o sobra; Ã© onde se descobre o que existe.
+ * ProjeÃƒÂ§ÃƒÂ£o do hub: TODAS as telas do grupo Ã¢â‚¬â€ inclusive as que jÃƒÂ¡ estÃƒÂ£o no
+ * sidebar. O hub ÃƒÂ© inventÃƒÂ¡rio, nÃƒÂ£o sobra; ÃƒÂ© onde se descobre o que existe.
  *
- * A ordem das seÃ§Ãµes Ã© a de primeira apariÃ§Ã£o no registro, entÃ£o reordenar a
- * jornada Ã© reordenar o array â€” nÃ£o hÃ¡ uma segunda lista para manter em sincronia.
+ * A ordem das seÃƒÂ§ÃƒÂµes ÃƒÂ© a de primeira apariÃƒÂ§ÃƒÂ£o no registro, entÃƒÂ£o reordenar a
+ * jornada ÃƒÂ© reordenar o array Ã¢â‚¬â€ nÃƒÂ£o hÃƒÂ¡ uma segunda lista para manter em sincronia.
  */
 export function hubSections(
   group: NavGroupId,
@@ -590,7 +590,7 @@ export function hubSections(
   return [...porSecao.entries()].map(([section, items]) => ({ section, items }));
 }
 
-/** ProjeÃ§Ã£o do âŒ˜K: todo destino visÃ­vel, do sidebar ou nÃ£o. */
+/** ProjeÃƒÂ§ÃƒÂ£o do Ã¢Å’ËœK: todo destino visÃƒÂ­vel, do sidebar ou nÃƒÂ£o. */
 export function searchable(isPlatformAdmin: boolean, role: Role | null): NavDestination[] {
   return NAV_DESTINATIONS.filter((d) => canSee(d, isPlatformAdmin, role));
 }
