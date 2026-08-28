@@ -70,6 +70,15 @@ describe("mostra a última mensagem", () => {
     expect(screen.getByText("conversa sem mensagens")).toBeInTheDocument();
     expect(screen.getByRole("link")).toBeInTheDocument();
   });
+
+  it("no card compacto vira só um atalho e preserva o contador", () => {
+    render(<ConversaSlot conversa={conversa({ unread: 3 })} compact />);
+    expect(screen.queryByText("Quiero saber el precio")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Abrir conversa, 3 sem ler" })).toHaveAttribute(
+      "href",
+      "/app/inbox?id=conv-1",
+    );
+  });
 });
 
 describe("some quando não há conversa", () => {
@@ -135,6 +144,6 @@ describe("o elo que some sem barulho", () => {
 
   it("o card renderiza o slot", () => {
     const fonte = readFileSync("components/kanban/KanbanCard.tsx", "utf8");
-    expect(fonte).toContain("<ConversaSlot conversa={lead.conversa} />");
+    expect(fonte).toContain("<ConversaSlot conversa={lead.conversa} compact />");
   });
 });

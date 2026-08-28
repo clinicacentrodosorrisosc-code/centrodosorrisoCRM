@@ -29,11 +29,40 @@ import { cn } from "@/lib/utils";
  * conversa. Nesses casos o slot não aparece — e NÃO aparece um "sem mensagens"
  * cinza, que ocuparia a mesma linha em metade dos cards para não dizer nada.
  */
-export function ConversaSlot({ conversa }: { conversa: Lead["conversa"] }) {
+export function ConversaSlot({
+  conversa,
+  compact = false,
+}: {
+  conversa: Lead["conversa"];
+  compact?: boolean;
+}) {
   if (!conversa) return null;
 
   const preview = conversa.preview?.trim();
   const temNaoLidas = conversa.unread > 0;
+
+  if (compact) {
+    return (
+      <Link
+        href={`/app/inbox?id=${conversa.id}`}
+        onClick={(e: MouseEvent) => e.stopPropagation()}
+        onPointerDown={(e: MouseEvent) => e.stopPropagation()}
+        className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-muted hover:bg-muted hover:text-foreground"
+        title={preview ? `Abrir conversa: ${preview}` : "Abrir esta conversa no Inbox"}
+        aria-label={temNaoLidas ? `Abrir conversa, ${conversa.unread} sem ler` : "Abrir conversa"}
+      >
+        <ChatCircle size={13} weight="regular" aria-hidden />
+        {temNaoLidas && (
+          <span
+            className="leading-3.5 absolute -right-1.5 -top-1.5 min-w-3.5 rounded-full bg-primary px-1 text-center text-[9px] font-medium tabular-nums text-primary-foreground"
+            aria-hidden
+          >
+            {conversa.unread}
+          </span>
+        )}
+      </Link>
+    );
+  }
 
   return (
     <Link
@@ -57,7 +86,7 @@ export function ConversaSlot({ conversa }: { conversa: Lead["conversa"] }) {
         // O número, não um ponto: "3 sem ler" e "12 sem ler" pedem urgências
         // diferentes, e um ponto colapsa as duas.
         <span
-          className="ml-auto shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-medium text-primary-foreground tabular-nums"
+          className="ml-auto shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-medium tabular-nums text-primary-foreground"
           aria-label={`${conversa.unread} sem ler`}
         >
           {conversa.unread}
