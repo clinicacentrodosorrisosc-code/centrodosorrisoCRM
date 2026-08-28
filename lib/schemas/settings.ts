@@ -12,6 +12,7 @@ import { ehHexValido } from "@/lib/branding/rampa";
 import { IDIOMAS } from "@/lib/i18n/idiomas";
 
 import { conversationTagSchema } from "./messaging";
+import { cardLayoutSchema } from "@/lib/kanban/card-layout";
 
 /**
  * Os idiomas que a interface REALMENTE serve.
@@ -131,9 +132,7 @@ const customFieldSchema = z.object({
     "url",
   ]),
   required: z.boolean().optional(),
-  options: z
-    .array(z.object({ value: z.string().min(1), label: z.string().min(1) }))
-    .optional(),
+  options: z.array(z.object({ value: z.string().min(1), label: z.string().min(1) })).optional(),
 });
 
 export const pipelineConfigPatchSchema = z.object({
@@ -147,6 +146,7 @@ export const pipelineConfigPatchSchema = z.object({
     .optional(),
   fields: z.array(customFieldSchema).max(50).optional(),
   lost_reasons: z.array(z.string().min(1).max(80)).max(50).optional(),
+  card_layout: cardLayoutSchema.optional(),
 });
 export type PipelineConfigPatch = z.infer<typeof pipelineConfigPatchSchema>;
 

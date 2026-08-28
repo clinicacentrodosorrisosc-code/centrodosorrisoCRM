@@ -144,6 +144,6 @@ describe("o elo que some sem barulho", () => {
 
   it("o card renderiza o slot", () => {
     const fonte = readFileSync("components/kanban/KanbanCard.tsx", "utf8");
-    expect(fonte).toContain("<ConversaSlot conversa={lead.conversa} compact />");
+    expect(fonte).toContain("<ConversaSlot conversa={lead.conversa} />");
   });
 });

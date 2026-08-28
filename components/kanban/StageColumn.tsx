@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import type { Lead } from "@/lib/types/leads";
 import type { Stage } from "@/lib/kanban/types";
+import type { CardLayout } from "@/lib/kanban/card-layout";
 import { buildCardInput } from "@/lib/kanban/card-state";
 import { KanbanCard } from "./KanbanCard";
 
@@ -19,6 +20,7 @@ interface StageColumnProps {
   reactivations?: Map<string, { proposalId: string; expiresAt: string }>;
   /** `settings.canonical_tags` do pipeline — a única tag que fica no card. */
   canonicalTags?: string[];
+  cardLayout: CardLayout;
   selectedLeadIds?: Set<string>;
   /** leadId → quantos eventos remotos já chegaram (muda = pulsa de novo). */
   pulses?: Map<string, number>;
@@ -47,6 +49,7 @@ export function StageColumn({
   coolingIds,
   reactivations,
   canonicalTags,
+  cardLayout,
   selectedLeadIds,
   pulses,
   onSelect,
@@ -58,19 +61,14 @@ export function StageColumn({
     : undefined;
 
   return (
-    <div className="flex w-80 shrink-0 flex-col rounded-lg border border-border bg-surface-muted/40">
+    <div className="bg-surface-muted/40 flex w-80 shrink-0 flex-col rounded-lg border border-border">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <span
-          className={cn(
-            "h-2 w-2 rounded-full",
-            !stage.color && "bg-text-muted/40",
-          )}
+          className={cn("h-2 w-2 rounded-full", !stage.color && "bg-text-muted/40")}
           style={accentStyle}
           aria-hidden
         />
-        <h2 className="flex-1 truncate text-sm font-semibold text-text">
-          {stage.name}
-        </h2>
+        <h2 className="flex-1 truncate text-sm font-semibold text-text">{stage.name}</h2>
         <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium tabular-nums text-text-muted">
           {leads.length}
         </span>
@@ -105,6 +103,7 @@ export function StageColumn({
                 lead={lead}
                 index={idx}
                 pipelineId={pipelineId}
+                layout={cardLayout}
                 isSelected={selectedLeadIds?.has(lead.id)}
                 pulseCount={pulses?.get(lead.id) ?? 0}
                 onSelect={onSelect}
@@ -113,7 +112,7 @@ export function StageColumn({
             ))}
             {provided.placeholder}
             {leads.length === 0 && !snapshot.isDraggingOver && (
-              <div className="flex h-20 items-center justify-center text-[11px] text-text-muted/70">
+              <div className="text-text-muted/70 flex h-20 items-center justify-center text-[11px]">
                 vazio
               </div>
             )}

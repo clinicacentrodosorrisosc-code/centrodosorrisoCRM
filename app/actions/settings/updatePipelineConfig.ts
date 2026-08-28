@@ -5,20 +5,17 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
-import {
-  pipelineConfigPatchSchema,
-  type PipelineConfigPatch,
-} from "@/lib/schemas/settings";
+import { pipelineConfigPatchSchema, type PipelineConfigPatch } from "@/lib/schemas/settings";
 import { loadAuthUser, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 
 export type UpdatePipelineConfigResult =
-  | { ok: true }
-  | { ok: false; error: string; details?: unknown };
+  { ok: true } | { ok: false; error: string; details?: unknown };
 
 export async function updatePipelineConfig(
   pipelineId: string,
   patch: PipelineConfigPatch,
+  options: { applyCardLayoutToAll?: boolean } = {},
 ): Promise<UpdatePipelineConfigResult> {
   if (!pipelineId || typeof pipelineId !== "string") {
     return { ok: false, error: "invalid_request" };
@@ -59,12 +56,34 @@ export async function updatePipelineConfig(
   const nextSettings: Record<string, unknown> = { ...currentSettings };
   if (parsed.data.fields !== undefined) nextSettings.fields = parsed.data.fields;
   if (parsed.data.lost_reasons !== undefined) nextSettings.lost_reasons = parsed.data.lost_reasons;
+  if (parsed.data.card_layout !== undefined) nextSettings.card_layout = parsed.data.card_layout;
 
   const { error } = await supabase
     .from("crm_pipelines")
     .update({ vocabulary: nextVocabulary, settings: nextSettings })
-    .eq("id", pipelineId);
+    .eq("id", pipelineId)
+    .eq("organization_id", activeOrg.orgId);
   if (error) return { ok: false, error: error.message };
+  let layoutsAtualizados = 1;
+  if (options.applyCardLayoutToAll && parsed.data.card_layout !== undefined) {
+    const { data: outros, error: outrosErr } = await supabase
+      .from("crm_pipelines")
+      .select("id, settings")
+      .eq("organization_id", activeOrg.orgId)
+      .neq("id", pipelineId);
+    if (outrosErr) return { ok: false, error: outrosErr.message };
+
+    for (const outro of outros ?? []) {
+      const settingsDoOutro = (outro.settings as Record<string, unknown> | null) ?? {};
+      const { error: updateErr } = await supabase
+        .from("crm_pipelines")
+        .update({ settings: { ...settingsDoOutro, card_layout: parsed.data.card_layout } })
+        .eq("id", outro.id)
+        .eq("organization_id", activeOrg.orgId);
+      if (updateErr) return { ok: false, error: updateErr.message };
+      layoutsAtualizados += 1;
+    }
+  }
 
   await audit({
     action: "pipeline.config_updated",
@@ -77,9 +96,12 @@ export async function updatePipelineConfig(
       vocabulary_changed: !!parsed.data.vocabulary,
       fields_count: parsed.data.fields?.length ?? null,
       lost_reasons_count: parsed.data.lost_reasons?.length ?? null,
+      card_layout_changed: parsed.data.card_layout !== undefined,
+      card_layout_applied_to_pipelines: parsed.data.card_layout ? layoutsAtualizados : null,
     },
   });
 
   revalidatePath("/app/settings/tenant/pipelines");
+  revalidatePath(`/app/pipelines/${pipelineId}`);
   return { ok: true };
 }
