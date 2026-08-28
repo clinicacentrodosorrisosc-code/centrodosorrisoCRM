@@ -25,17 +25,20 @@ import { FilterBar } from "@/components/kanban/FilterBar";
 import { BulkActionBar } from "@/components/kanban/BulkActionBar";
 import { NewLeadDialog } from "@/components/kanban/NewLeadDialog";
 import { Button } from "@/components/ui/button";
-import { Bell, Plus, Kanban, Funnel } from "@/lib/ui/icons";
+import { Bell, Plus, Kanban, Funnel, Gear } from "@/lib/ui/icons";
 import { ReminderConfigDialog } from "@/components/kanban/ReminderConfigDialog";
+import { CardLayoutDialog } from "@/components/kanban/CardLayoutDialog";
 import type { LeadFilters } from "@/lib/kanban/filters";
 import { applyFilters, filtersFromParams, filtersToParams } from "@/lib/kanban/filters";
 
 export function PipelinePageClient({
   pipelineId,
   initialName,
+  podeConfigurarCard,
 }: {
   pipelineId: string;
   initialName: string;
+  podeConfigurarCard: boolean;
 }) {
   const { data, isLoading, error, pulses, realtimeStatus, seguranca } = useBoard(pipelineId);
   const router = useRouter();
@@ -52,6 +55,7 @@ export function PipelinePageClient({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [newOpen, setNewOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [cardLayoutOpen, setCardLayoutOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "funnel">("kanban");
 
   const filteredLeads = data ? applyFilters(data.leads, filters) : [];
@@ -63,18 +67,18 @@ export function PipelinePageClient({
       data-refetch-divergencias={seguranca.divergencias}
       data-refetch-em={seguranca.ultimaVerificacao ?? ""}
     >
-      <header className="flex items-center justify-between flex-wrap gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">
             {data?.pipeline.name ?? initialName}
           </h1>
 
           {/* Alternador de Visualização: Kanban vs Funil Horizontal */}
-          <div className="flex items-center rounded-lg border border-border/80 bg-muted/40 p-0.5">
+          <div className="border-border/80 bg-muted/40 flex items-center rounded-lg border p-0.5">
             <button
               type="button"
               onClick={() => setViewMode("kanban")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                 viewMode === "kanban"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -85,7 +89,7 @@ export function PipelinePageClient({
             <button
               type="button"
               onClick={() => setViewMode("funnel")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                 viewMode === "funnel"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -97,6 +101,16 @@ export function PipelinePageClient({
         </div>
 
         <div className="flex items-center gap-2">
+          {podeConfigurarCard && (
+            <Button
+              variant="outline"
+              onClick={() => setCardLayoutOpen(true)}
+              disabled={!data}
+              aria-label="Editar layout dos cards"
+            >
+              <Gear size={16} className="mr-2" /> Layout do card
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => setReminderOpen(true)}
@@ -123,9 +137,8 @@ export function PipelinePageClient({
       <FilterBar filters={filters} onChange={setFilters} leads={data?.leads ?? []} />
 
       {error ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm">
-          Não consegui carregar este funil:{" "}
-          {formatError(error)}
+        <div className="border-destructive/30 bg-destructive/10 rounded-md border p-4 text-sm">
+          Não consegui carregar este funil: {formatError(error)}
         </div>
       ) : isLoading || !data ? (
         <div className="flex flex-1 animate-pulse items-center justify-center text-muted-foreground">
@@ -156,6 +169,16 @@ export function PipelinePageClient({
           stages={data?.stages ?? []}
           pipelineId={pipelineId}
           onClear={() => setSelectedIds([])}
+        />
+      )}
+
+      {data && (
+        <CardLayoutDialog
+          open={cardLayoutOpen}
+          onOpenChange={setCardLayoutOpen}
+          pipelineId={pipelineId}
+          pipelineName={data.pipeline.name}
+          settings={data.pipeline.settings}
         />
       )}
 

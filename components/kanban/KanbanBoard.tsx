@@ -22,6 +22,7 @@ import { useAssignableMembers } from "@/hooks/inbox/useAssignableMembers";
 import { useAtRiskLeads } from "@/hooks/leads/useAtRiskLeads";
 import { useReactivations } from "@/hooks/leads/useReactivations";
 import { midpoint } from "@/lib/kanban/fractional-indexing";
+import { readCardLayout } from "@/lib/kanban/card-layout";
 import { parseReaisToCents } from "@/lib/money";
 import type { Lead } from "@/lib/types/leads";
 import type { UpdateLeadInput } from "@/lib/schemas/leads";
@@ -86,7 +87,7 @@ function BoardSkeleton() {
       {Array.from({ length: 4 }).map((_, i) => (
         <div
           key={i}
-          className="flex h-full w-80 shrink-0 flex-col rounded-lg bg-surface-muted/50 p-2"
+          className="bg-surface-muted/50 flex h-full w-80 shrink-0 flex-col rounded-lg p-2"
         >
           <div className="mb-3 flex items-center justify-between px-2 py-1">
             <Skeleton className="h-4 w-24" />
@@ -144,6 +145,11 @@ export function KanbanBoard({
     return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === "string") : [];
   }, [pipelineProp, queryResult.data?.pipeline]);
 
+  const cardLayout = useMemo(
+    () => readCardLayout((pipelineProp ?? queryResult.data?.pipeline)?.settings),
+    [pipelineProp, queryResult.data?.pipeline],
+  );
+
   const [dossieId, setDossieId] = useState<string | null>(null);
   const [internalSelected, setInternalSelected] = useState<Set<string>>(new Set());
   const selectedLeadIds = useMemo(
@@ -194,9 +200,7 @@ export function KanbanBoard({
   const isError = useExternal ? false : queryResult.isError;
   const error = useExternal ? null : queryResult.error;
 
-  const leadDoDossie = dossieId
-    ? (data?.leads.find((l) => l.id === dossieId) ?? null)
-    : null;
+  const leadDoDossie = dossieId ? (data?.leads.find((l) => l.id === dossieId) ?? null) : null;
 
   const grouped = useMemo(() => {
     if (!data) return null;
@@ -288,10 +292,7 @@ export function KanbanBoard({
       if (!data || !grouped) return;
       const { source, destination, draggableId } = result;
       if (!destination) return;
-      if (
-        source.droppableId === destination.droppableId &&
-        source.index === destination.index
-      ) {
+      if (source.droppableId === destination.droppableId && source.index === destination.index) {
         return;
       }
 
@@ -303,17 +304,16 @@ export function KanbanBoard({
       const destStageName = destStage?.name ?? "";
 
       if (/n[aã]o\s*compareceu|faltou|no[-\s]?show/i.test(destStageName)) {
-        toast.error("Para registrar falta, use o botão 'Faltou' no card ou no lead para contabilizar o histórico.");
+        toast.error(
+          "Para registrar falta, use o botão 'Faltou' no card ou no lead para contabilizar o histórico.",
+        );
         return;
       }
 
-      const destList = (grouped.get(destStageId) ?? []).filter(
-        (l) => l.id !== draggableId,
-      );
+      const destList = (grouped.get(destStageId) ?? []).filter((l) => l.id !== draggableId);
 
       const before = destination.index > 0 ? destList[destination.index - 1] : null;
-      const after =
-        destination.index < destList.length ? destList[destination.index] : null;
+      const after = destination.index < destList.length ? destList[destination.index] : null;
 
       const newPosition = midpoint(
         before?.position_in_stage ?? null,
@@ -358,7 +358,10 @@ export function KanbanBoard({
           );
         } else {
           const procInicial = String(custom.procedimento ?? custom.procedure ?? "").trim();
-          const valInicial = lead.value_cents && lead.value_cents > 0 ? (lead.value_cents / 100).toFixed(2).replace(".", ",") : "";
+          const valInicial =
+            lead.value_cents && lead.value_cents > 0
+              ? (lead.value_cents / 100).toFixed(2).replace(".", ",")
+              : "";
           setBudgetItens([
             {
               id: "item_1",
@@ -421,7 +424,9 @@ export function KanbanBoard({
         expectedUpdatedAt: lead.updated_at,
       });
 
-      toast.success(`Consulta agendada para ${scheduleData.split("-").reverse().join("/")} às ${scheduleHora} e lead movido para "${destStageName}"!`);
+      toast.success(
+        `Consulta agendada para ${scheduleData.split("-").reverse().join("/")} às ${scheduleHora} e lead movido para "${destStageName}"!`,
+      );
       setPendingScheduleMove(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao agendar consulta");
@@ -501,7 +506,9 @@ export function KanbanBoard({
         expectedUpdatedAt: lead.updated_at,
       });
 
-      toast.success(`Orçamento de ${formatBRL(totalOrcamentoCents)} registrado! Presença confirmada.`);
+      toast.success(
+        `Orçamento de ${formatBRL(totalOrcamentoCents)} registrado! Presença confirmada.`,
+      );
       setPendingBudgetMove(null);
     } catch {
       toast.error("Erro ao salvar orçamento do lead");
@@ -530,9 +537,7 @@ export function KanbanBoard({
 
   if (data.stages.length === 0) {
     return (
-      <Card className="m-4 p-6 text-sm text-text-muted">
-        Nenhum lead nesta pipeline ainda.
-      </Card>
+      <Card className="m-4 p-6 text-sm text-text-muted">Nenhum lead nesta pipeline ainda.</Card>
     );
   }
 
@@ -550,6 +555,7 @@ export function KanbanBoard({
             reactivations={reactivations}
             pulses={pulsesProp ?? queryResult.pulses}
             canonicalTags={canonicalTags}
+            cardLayout={cardLayout}
             selectedLeadIds={selectedLeadIds}
             onSelect={handleSelect}
             onOpen={setDossieId}
@@ -563,9 +569,7 @@ export function KanbanBoard({
           onOpenChange={(v) => !v && setDossieId(null)}
           lead={leadDoDossie}
           pipelineId={pipelineId}
-          stageName={
-            data.stages.find((s) => s.id === leadDoDossie.stage_id)?.name ?? "—"
-          }
+          stageName={data.stages.find((s) => s.id === leadDoDossie.stage_id)?.name ?? "—"}
           ownerNames={ownerNames}
         />
       )}
@@ -583,14 +587,19 @@ export function KanbanBoard({
               <CalendarBlank size={18} className="text-primary" /> Agendamento de Consulta
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Para mover <strong>{pendingScheduleMove?.lead.title}</strong> para a etapa <strong>{pendingScheduleMove?.destStageName}</strong>, informe a data e horário da avaliação. Se cancelar, o lead voltará para a etapa anterior.
+              Para mover <strong>{pendingScheduleMove?.lead.title}</strong> para a etapa{" "}
+              <strong>{pendingScheduleMove?.destStageName}</strong>, informe a data e horário da
+              avaliação. Se cancelar, o lead voltará para a etapa anterior.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-3 py-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="sched-data" className="text-xs font-semibold flex items-center gap-1">
+                <Label
+                  htmlFor="sched-data"
+                  className="flex items-center gap-1 text-xs font-semibold"
+                >
                   <CalendarBlank size={13} className="text-primary" /> Data da Consulta *
                 </Label>
                 <Input
@@ -598,12 +607,15 @@ export function KanbanBoard({
                   type="date"
                   value={scheduleData}
                   onChange={(e) => setScheduleData(e.target.value)}
-                  className="h-8 text-xs bg-background"
+                  className="h-8 bg-background text-xs"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="sched-hora" className="text-xs font-semibold flex items-center gap-1">
+                <Label
+                  htmlFor="sched-hora"
+                  className="flex items-center gap-1 text-xs font-semibold"
+                >
                   <Clock size={13} className="text-primary" /> Horário *
                 </Label>
                 <Input
@@ -611,7 +623,7 @@ export function KanbanBoard({
                   type="time"
                   value={scheduleHora}
                   onChange={(e) => setScheduleHora(e.target.value)}
-                  className="h-8 text-xs bg-background"
+                  className="h-8 bg-background text-xs"
                 />
               </div>
             </div>
@@ -625,7 +637,7 @@ export function KanbanBoard({
                 placeholder="Ex: Avaliação Geral, Implante, Limpeza..."
                 value={scheduleProcedimento}
                 onChange={(e) => setScheduleProcedimento(e.target.value)}
-                className="h-8 text-xs bg-background"
+                className="h-8 bg-background text-xs"
               />
             </div>
           </div>
@@ -646,7 +658,7 @@ export function KanbanBoard({
               size="sm"
               onClick={handleConfirmScheduleMove}
               disabled={!scheduleData.trim() || !scheduleHora.trim() || isSavingSchedule}
-              className="h-8 text-xs font-bold gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+              className="hover:bg-primary/90 h-8 gap-1 bg-primary text-xs font-bold text-primary-foreground"
             >
               <CheckCircle size={14} weight="bold" />
               {isSavingSchedule ? "Agendando..." : "Confirmar Agendamento"}
@@ -662,18 +674,21 @@ export function KanbanBoard({
           if (!open) handleCancelBudgetMove();
         }}
       >
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-6">
-          <DialogHeader className="border-b border-border/60 pb-3">
+        <DialogContent className="flex max-h-[90vh] flex-col p-6 sm:max-w-2xl">
+          <DialogHeader className="border-border/60 border-b pb-3">
             <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
-              <Receipt size={20} className="text-emerald-500" /> Registro de Procedimentos & Orçamento
+              <Receipt size={20} className="text-emerald-500" /> Registro de Procedimentos &
+              Orçamento
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Adicione os procedimentos avaliados para <strong>{pendingBudgetMove?.lead.title}</strong>. O sistema calcula a soma automática do orçamento e confirma a presença do paciente.
+              Adicione os procedimentos avaliados para{" "}
+              <strong>{pendingBudgetMove?.lead.title}</strong>. O sistema calcula a soma automática
+              do orçamento e confirma a presença do paciente.
             </DialogDescription>
           </DialogHeader>
 
           {/* Lista de Itens do Orçamento */}
-          <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1 scrollbar-thin">
+          <div className="scrollbar-thin flex-1 space-y-3 overflow-y-auto py-3 pr-1">
             <div className="space-y-2">
               {budgetItens.map((item, index) => {
                 const unitCents = parseReaisToCents(item.valorUnitarioReais) || 0;
@@ -682,10 +697,10 @@ export function KanbanBoard({
                 return (
                   <div
                     key={item.id}
-                    className="p-3 border border-border/70 rounded-xl bg-card/80 flex flex-col gap-2.5 shadow-xs"
+                    className="border-border/70 bg-card/80 flex flex-col gap-2.5 rounded-xl border p-3 shadow-xs"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+                      <span className="flex items-center gap-1 text-[11px] font-bold uppercase text-muted-foreground">
                         <Sparkle size={12} className="text-emerald-500" /> Procedimento #{index + 1}
                       </span>
                       {budgetItens.length > 1 && (
@@ -694,7 +709,7 @@ export function KanbanBoard({
                           variant="ghost"
                           size="icon"
                           onClick={() => handleRemoveBudgetItem(item.id)}
-                          className="h-7 w-7 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg"
+                          className="h-7 w-7 rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
                           title="Remover procedimento"
                         >
                           <Trash size={14} />
@@ -702,9 +717,9 @@ export function KanbanBoard({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                    <div className="grid grid-cols-1 items-end gap-2.5 sm:grid-cols-12">
                       {/* Seleção ou Digitação do Procedimento */}
-                      <div className="sm:col-span-6 space-y-1">
+                      <div className="space-y-1 sm:col-span-6">
                         <Label className="text-xs font-semibold text-foreground">
                           Nome do Procedimento *
                         </Label>
@@ -716,7 +731,7 @@ export function KanbanBoard({
                               handleUpdateBudgetItem(item.id, "descricao", e.target.value)
                             }
                             list={`sugestoes-${item.id}`}
-                            className="h-8 text-xs bg-background"
+                            className="h-8 bg-background text-xs"
                           />
                           <datalist id={`sugestoes-${item.id}`}>
                             {listaProcedimentos.map((p) => (
@@ -727,10 +742,8 @@ export function KanbanBoard({
                       </div>
 
                       {/* Quantidade */}
-                      <div className="sm:col-span-2 space-y-1">
-                        <Label className="text-xs font-semibold text-foreground">
-                          Qtd
-                        </Label>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label className="text-xs font-semibold text-foreground">Qtd</Label>
                         <Input
                           type="number"
                           min="1"
@@ -738,12 +751,12 @@ export function KanbanBoard({
                           onChange={(e) =>
                             handleUpdateBudgetItem(item.id, "quantidade", e.target.value)
                           }
-                          className="h-8 text-xs bg-background text-center"
+                          className="h-8 bg-background text-center text-xs"
                         />
                       </div>
 
                       {/* Valor Unitário R$ */}
-                      <div className="sm:col-span-2 space-y-1">
+                      <div className="space-y-1 sm:col-span-2">
                         <Label className="text-xs font-semibold text-foreground">
                           Valor Unit. (R$) *
                         </Label>
@@ -753,16 +766,16 @@ export function KanbanBoard({
                           onChange={(e) =>
                             handleUpdateBudgetItem(item.id, "valorUnitarioReais", e.target.value)
                           }
-                          className="h-8 text-xs bg-background text-right"
+                          className="h-8 bg-background text-right text-xs"
                         />
                       </div>
 
                       {/* Total do Item */}
-                      <div className="sm:col-span-2 space-y-1 text-right">
+                      <div className="space-y-1 text-right sm:col-span-2">
                         <Label className="text-[11px] font-medium text-muted-foreground">
                           Total Item
                         </Label>
-                        <div className="h-8 flex items-center justify-end px-2 bg-muted/60 rounded-md border border-border/50 text-xs font-bold text-foreground tabular-nums">
+                        <div className="bg-muted/60 border-border/50 flex h-8 items-center justify-end rounded-md border px-2 text-xs font-bold tabular-nums text-foreground">
                           {formatBRL(itemTotalCents)}
                         </div>
                       </div>
@@ -778,14 +791,14 @@ export function KanbanBoard({
               variant="outline"
               size="sm"
               onClick={handleAddBudgetItem}
-              className="w-full h-8 text-xs font-semibold border-dashed gap-1.5 hover:border-emerald-500 hover:text-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20"
+              className="h-8 w-full gap-1.5 border-dashed text-xs font-semibold hover:border-emerald-500 hover:bg-emerald-50/50 hover:text-emerald-600 dark:hover:bg-emerald-950/20"
             >
               <Plus size={14} weight="bold" /> Adicionar Outro Procedimento
             </Button>
 
             {/* Desconto Opcional */}
-            <div className="flex items-center justify-between pt-2 border-t border-border/50 gap-4">
-              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <div className="border-border/50 flex items-center justify-between gap-4 border-t pt-2">
+              <Label className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                 Desconto Promocional (Opcional):
               </Label>
               <div className="w-36">
@@ -793,19 +806,20 @@ export function KanbanBoard({
                   placeholder="R$ 0,00"
                   value={budgetDescontoReais}
                   onChange={(e) => setBudgetDescontoReais(e.target.value)}
-                  className="h-8 text-xs bg-background text-right"
+                  className="h-8 bg-background text-right text-xs"
                 />
               </div>
             </div>
           </div>
 
           {/* Rodapé com Soma Total e Ações */}
-          <DialogFooter className="border-t border-border/60 pt-3 flex items-center justify-between sm:justify-between flex-wrap gap-2">
+          <DialogFooter className="border-border/60 flex flex-wrap items-center justify-between gap-2 border-t pt-3 sm:justify-between">
             <div className="flex flex-col">
               <span className="text-[11px] font-semibold text-muted-foreground">
-                Valor Total do Orçamento ({budgetItens.length} {budgetItens.length === 1 ? "item" : "itens"}):
+                Valor Total do Orçamento ({budgetItens.length}{" "}
+                {budgetItens.length === 1 ? "item" : "itens"}):
               </span>
-              <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+              <span className="text-xl font-black tabular-nums text-emerald-600 dark:text-emerald-400">
                 {formatBRL(totalOrcamentoCents)}
               </span>
             </div>
@@ -826,7 +840,7 @@ export function KanbanBoard({
                 size="sm"
                 onClick={handleConfirmBudgetMove}
                 disabled={totalOrcamentoCents <= 0 || isSavingBudget}
-                className="h-9 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                className="h-9 gap-1.5 bg-emerald-600 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"
               >
                 <CheckCircle size={16} weight="bold" />
                 {isSavingBudget ? "Salvando..." : "Confirmar Orçamento & Presença"}
