@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import XLSX from "xlsx";
+import * as XLSX from "xlsx";
 import { UploadSimple } from "@/lib/ui/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
