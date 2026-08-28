@@ -186,7 +186,7 @@ export function KanbanCard({
           title={leadTags.length > 0 ? `Tags: ${leadTags.join(", ")}` : undefined}
           className={cn(
             "group relative overflow-hidden rounded-lg border border-border/80 bg-surface cursor-pointer select-none",
-            "p-3 shadow-xs transition-all duration-150",
+            "p-2.5 shadow-xs transition-all duration-150",
             "hover:border-border-strong hover:shadow-sm",
             snapshot.isDragging && "rotate-1 shadow-md ring-2 ring-accent/40 z-50",
             isSelected && "ring-2 ring-accent",
@@ -214,11 +214,11 @@ export function KanbanCard({
 
           {/* 1. Header do Card: Avatar, Nome, Procedimento e Código/ID */}
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            <div className="flex items-start gap-2 min-w-0 flex-1">
               {/* Avatar Redondo */}
               <div
                 className={cn(
-                  "h-8 w-8 rounded-full border flex items-center justify-center font-bold text-xs shrink-0 select-none shadow-2xs",
+                  "h-7 w-7 rounded-full border flex items-center justify-center font-bold text-[11px] shrink-0 select-none shadow-2xs",
                   avatarTheme.bg,
                   avatarTheme.text,
                 )}
@@ -255,7 +255,7 @@ export function KanbanCard({
 
             {/* Código/ID e Menu de Ações */}
             <div className="flex items-center gap-1 shrink-0">
-              <span className="text-[10px] font-mono font-medium text-muted-foreground/70">
+              <span className="sr-only">
                 {shortId}
               </span>
               <KanbanCardActions lead={lead} pipelineId={pipelineId} />
@@ -263,7 +263,7 @@ export function KanbanCard({
           </div>
 
           {/* 2. Informações Detalhadas: Responsável, Valor, Agendamento, Atividades */}
-          <div className="mt-2.5 flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <div className="mt-1.5 flex flex-col gap-1 text-xs text-muted-foreground">
             {/* Responsável / Atendente */}
             <div className="flex items-center gap-1.5 text-foreground/90 font-medium truncate">
               {card.owner.kind === "ai" ? (
@@ -327,12 +327,12 @@ export function KanbanCard({
           </div>
 
           {/* Atalho de conversa do WhatsApp */}
-          <div className="mt-2">
+          <div className="mt-1">
             <ConversaSlot conversa={lead.conversa} />
           </div>
 
           {/* 3. Rodapé do Card: Tags, Fonte e Tempo no Estágio */}
-          <div className="mt-2.5 pt-2 border-t border-border/50 flex items-center justify-between gap-1.5">
+          <div className="mt-1.5 pt-1.5 border-t border-border/50 flex items-center justify-between gap-1.5">
             <div className="flex flex-wrap items-center gap-1 overflow-hidden max-w-[210px]">
               {/* Badge de Fonte */}
               {fonteBadge && (
@@ -350,7 +350,7 @@ export function KanbanCard({
               {/* Badge de Campanha/Anúncio Meta Ads */}
               {adHeadline && (
                 <span
-                  className="inline-flex items-center rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 text-[10px] font-semibold truncate max-w-[130px]"
+                  className="hidden"
                   title={`Campanha / Anúncio: ${adHeadline}`}
                 >
                   📢 {adHeadline}
@@ -358,7 +358,7 @@ export function KanbanCard({
               )}
 
               {/* Badges de Tags */}
-              {leadTags.slice(0, 2).map((t) => (
+              {leadTags.slice(0, 1).map((t) => (
                 <span
                   key={t}
                   className="inline-flex items-center rounded-md bg-secondary/80 px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground border border-border/60 truncate max-w-[90px]"
@@ -368,12 +368,12 @@ export function KanbanCard({
                 </span>
               ))}
 
-              {leadTags.length > 2 && (
+              {leadTags.length > 1 && (
                 <span
                   className="text-[9px] font-bold text-muted-foreground"
-                  title={`Mais ${leadTags.length - 2} tags: ${leadTags.slice(2).join(", ")}`}
+                  title={`Mais ${leadTags.length - 1} tags: ${leadTags.slice(1).join(", ")}`}
                 >
-                  +{leadTags.length - 2}
+                  +{leadTags.length - 1}
                 </span>
               )}
             </div>
