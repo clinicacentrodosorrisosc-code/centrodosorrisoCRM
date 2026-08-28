@@ -62,39 +62,6 @@ function formatAgendamentoDate(rawDate?: unknown, rawHora?: unknown): string | n
   return formatted;
 }
 
-function getAvatarColor(name: string): { bg: string; text: string } {
-  const colors: Array<{ bg: string; text: string }> = [
-    {
-      bg: "bg-pink-100 dark:bg-pink-950/70 border-pink-200 dark:border-pink-800",
-      text: "text-pink-600 dark:text-pink-300",
-    },
-    {
-      bg: "bg-sky-100 dark:bg-sky-950/70 border-sky-200 dark:border-sky-800",
-      text: "text-sky-600 dark:text-sky-300",
-    },
-    {
-      bg: "bg-purple-100 dark:bg-purple-950/70 border-purple-200 dark:border-purple-800",
-      text: "text-purple-600 dark:text-purple-300",
-    },
-    {
-      bg: "bg-amber-100 dark:bg-amber-950/70 border-amber-200 dark:border-amber-800",
-      text: "text-amber-600 dark:text-amber-300",
-    },
-    {
-      bg: "bg-emerald-100 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-800",
-      text: "text-emerald-600 dark:text-emerald-300",
-    },
-    {
-      bg: "bg-indigo-100 dark:bg-indigo-950/70 border-indigo-200 dark:border-indigo-800",
-      text: "text-indigo-600 dark:text-indigo-300",
-    },
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
-  const idx = Math.abs(hash) % colors.length;
-  return colors[idx] ?? colors[0]!;
-}
-
 function getFonteBadge(source?: string | null) {
   if (!source || !source.trim()) return null;
   const s = source.toLowerCase();
@@ -191,10 +158,6 @@ export function KanbanCard({
   // Tags do Lead
   const leadTags = Array.isArray(lead.tags) ? lead.tags : (card.tags ?? []);
 
-  // Avatar
-  const avatarTheme = getAvatarColor(card.title || "Lead");
-  const initial = (card.title || "L").trim().charAt(0).toUpperCase();
-
   const handleClick = (e: MouseEvent<HTMLDivElement>) => {
     if (e.metaKey || e.ctrlKey) {
       onSelect?.(card.id, true);
@@ -215,8 +178,8 @@ export function KanbanCard({
           onClick={handleClick}
           title={leadTags.length > 0 ? `Tags: ${leadTags.join(", ")}` : undefined}
           className={cn(
-            "border-border/80 group relative cursor-pointer select-none overflow-hidden rounded-lg border bg-surface",
-            "p-2 shadow-xs transition-all duration-150",
+            "border-border/80 group relative cursor-pointer select-none overflow-hidden rounded-md border bg-surface",
+            "p-1.5 shadow-xs transition-all duration-150",
             "hover:border-border-strong hover:shadow-sm",
             snapshot.isDragging && "ring-accent/40 z-50 rotate-1 shadow-md ring-2",
             isSelected && "ring-2 ring-accent",
@@ -242,145 +205,127 @@ export function KanbanCard({
             )}
           />
 
-          <div className="flex min-w-0 items-start gap-2">
-            <div
-              className={cn(
-                "flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-full border text-[11px] font-bold",
-                avatarTheme.bg,
-                avatarTheme.text,
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpen?.(card.id);
+                }}
+                className="leading-3.5 min-w-0 flex-1 truncate text-left text-[11px] font-semibold text-foreground hover:underline"
+                title={card.title}
+              >
+                {card.title}
+              </button>
+              {age && (
+                <span className="text-muted-foreground/70 shrink-0 text-[9px] tabular-nums">
+                  {age}
+                </span>
               )}
-              aria-hidden
-            >
-              {initial}
+              <KanbanCardActions lead={lead} pipelineId={pipelineId} />
             </div>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-1">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpen?.(card.id);
-                  }}
-                  className="min-w-0 flex-1 truncate text-left text-[12px] font-semibold leading-4 text-foreground hover:underline"
-                  title={card.title}
-                >
-                  {card.title}
-                </button>
-                {age && (
-                  <span className="text-muted-foreground/70 shrink-0 text-[9px] tabular-nums">
-                    {age}
-                  </span>
+            <div className="flex min-w-0 items-center gap-1.5 text-[9px] leading-3">
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  procedimento !== "Sem produto"
+                    ? "dark:text-primary/90 text-primary"
+                    : "text-muted-foreground/70",
                 )}
-                <KanbanCardActions lead={lead} pipelineId={pipelineId} />
-              </div>
+                title={procedimento}
+              >
+                {procedimento}
+              </span>
+              <span className="shrink-0 font-semibold tabular-nums text-foreground">
+                {valorFormatado}
+              </span>
+            </div>
 
-              <div className="leading-3.5 mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px]">
+            <div className="mt-0.5 flex min-w-0 items-center gap-1 text-[9px] leading-3 text-muted-foreground">
+              <span
+                className="flex min-w-0 max-w-20 items-center gap-0.5"
+                title={card.owner.name || "Sem responsável"}
+              >
+                {card.owner.kind === "ai" ? (
+                  <Bot className="h-2.5 w-2.5 shrink-0 text-purple-500" />
+                ) : (
+                  <User className="h-2.5 w-2.5 shrink-0" />
+                )}
+                <span className="truncate">{card.owner.name || "Sem responsável"}</span>
+              </span>
+
+              {agendamentoDataStr && (
+                <span
+                  className="flex min-w-0 max-w-16 items-center gap-0.5 text-emerald-600 dark:text-emerald-400"
+                  title={`Agendamento: ${agendamentoDataStr}`}
+                >
+                  <Calendar className="h-2.5 w-2.5 shrink-0" />
+                  <span className="truncate">{agendamentoDataStr}</span>
+                </span>
+              )}
+
+              {fonteBadge && (
                 <span
                   className={cn(
-                    "min-w-0 flex-1 truncate",
-                    procedimento !== "Sem produto"
-                      ? "dark:text-primary/90 text-primary"
-                      : "text-muted-foreground/70",
+                    "inline-flex max-w-16 truncate rounded border px-1 text-[8px] font-medium leading-3",
+                    fonteBadge.className,
                   )}
-                  title={procedimento}
+                  title={`Fonte: ${fonteBadge.label}`}
                 >
-                  {procedimento}
+                  {fonteBadge.label}
                 </span>
-                <span className="shrink-0 font-semibold tabular-nums text-foreground">
-                  {valorFormatado}
-                </span>
-              </div>
-
-              <div className="leading-3.5 mt-1 flex min-w-0 items-center gap-1.5 text-[9px] text-muted-foreground">
-                <span className="flex min-w-0 items-center gap-1">
-                  {card.owner.kind === "ai" ? (
-                    <Bot className="h-2.5 w-2.5 shrink-0 text-purple-500" />
-                  ) : (
-                    <User className="h-2.5 w-2.5 shrink-0" />
-                  )}
-                  <span className="truncate">{card.owner.name || "Sem responsável"}</span>
-                </span>
-                {agendamentoDataStr && (
-                  <span
-                    className="ml-auto flex min-w-0 items-center gap-1 text-emerald-600 dark:text-emerald-400"
-                    title={`Agendamento: ${agendamentoDataStr}`}
-                  >
-                    <Calendar className="h-2.5 w-2.5 shrink-0" />
-                    <span className="truncate">{agendamentoDataStr}</span>
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-1 flex min-w-0 items-center gap-1">
-                {fonteBadge && (
-                  <span
-                    className={cn(
-                      "inline-flex max-w-20 truncate rounded border px-1 py-px text-[9px] font-medium leading-3",
-                      fonteBadge.className,
-                    )}
-                    title={`Fonte: ${fonteBadge.label}`}
-                  >
-                    {fonteBadge.label}
-                  </span>
-                )}
-                {leadTags.slice(0, 1).map((tag) => (
-                  <span
-                    key={tag}
-                    className="border-border/60 bg-secondary/80 inline-flex max-w-20 truncate rounded border px-1 py-px text-[9px] leading-3 text-secondary-foreground"
-                    title={`Tag: ${tag}`}
-                  >
-                    {tag}
-                  </span>
-                ))}
-                {leadTags.length > 1 && (
-                  <span
-                    className="text-[9px] text-muted-foreground"
-                    title={leadTags.slice(1).join(", ")}
-                  >
-                    +{leadTags.length - 1}
-                  </span>
-                )}
-
-                <span className="ml-auto flex shrink-0 items-center gap-1 text-[9px]">
-                  {state.slot.type === "meter" ? (
-                    <ScoreSlot
-                      probability={state.slot.probability}
-                      band={state.slot.band}
-                      reason={state.slot.reason}
-                      factors={state.slot.factors}
-                    />
-                  ) : state.slot.type === "cooling" ? (
-                    <span className="max-w-24 truncate text-warning-fg" title={state.slot.label}>
-                      {state.slot.label}
-                    </span>
-                  ) : state.slot.type === "idle" ? (
-                    <span className="text-muted-foreground/70">Sem tarefas</span>
-                  ) : null}
-                  <ConversaSlot conversa={lead.conversa} compact />
-                </span>
-              </div>
-
-              {(state.slot.type === "awaiting" || state.slot.type === "reactivation") && (
-                <div className="border-border/50 mt-1 flex min-w-0 items-center gap-1 border-t pt-1 text-[9px]">
-                  {state.slot.type === "awaiting" ? (
-                    <NextActionSlot
-                      label={state.slot.label}
-                      leadId={card.id}
-                      approvedSeq={lead.next_action?.seq ?? -1}
-                      pipelineId={pipelineId}
-                    />
-                  ) : (
-                    <ReactivationSlot
-                      leadId={card.id}
-                      proposalId={state.slot.proposalId}
-                      expiresAt={state.slot.expiresAt}
-                      pipelineId={pipelineId}
-                    />
-                  )}
-                </div>
               )}
+
+              {leadTags.slice(0, 1).map((tag) => (
+                <span
+                  key={tag}
+                  className="border-border/60 bg-secondary/80 inline-flex max-w-16 truncate rounded border px-1 text-[8px] leading-3 text-secondary-foreground"
+                  title={`Tag: ${tag}`}
+                >
+                  {tag}
+                </span>
+              ))}
+
+              <span className="ml-auto flex shrink-0 items-center gap-0.5">
+                {state.slot.type === "meter" ? (
+                  <ScoreSlot
+                    probability={state.slot.probability}
+                    band={state.slot.band}
+                    reason={state.slot.reason}
+                    factors={state.slot.factors}
+                  />
+                ) : state.slot.type === "cooling" ? (
+                  <span className="max-w-20 truncate text-warning-fg" title={state.slot.label}>
+                    {state.slot.label}
+                  </span>
+                ) : state.slot.type === "idle" ? (
+                  <span className="text-muted-foreground/70">Sem tarefas</span>
+                ) : null}
+                <ConversaSlot conversa={lead.conversa} compact />
+              </span>
             </div>
+
+            {(state.slot.type === "awaiting" || state.slot.type === "reactivation") && (
+              <div className="border-border/50 mt-0.5 flex min-w-0 items-center gap-1 border-t pt-0.5 text-[9px]">
+                {state.slot.type === "awaiting" ? (
+                  <NextActionSlot
+                    label={state.slot.label}
+                    leadId={card.id}
+                    approvedSeq={lead.next_action?.seq ?? -1}
+                    pipelineId={pipelineId}
+                  />
+                ) : (
+                  <ReactivationSlot
+                    leadId={card.id}
+                    proposalId={state.slot.proposalId}
+                    expiresAt={state.slot.expiresAt}
+                    pipelineId={pipelineId}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
