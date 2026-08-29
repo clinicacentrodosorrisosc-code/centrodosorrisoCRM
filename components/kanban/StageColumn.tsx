@@ -55,7 +55,12 @@ export function StageColumn({
   onSelect,
   onOpen,
 }: StageColumnProps) {
-  const totalCents = leads.reduce((sum, l) => sum + (l.value_cents ?? 0), 0);
+  const totalCents = leads.reduce((sum, lead) => {
+    const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
+    const orcamento = custom.orcamento as { total_cents?: unknown } | undefined;
+    const totalOrcamento = typeof orcamento?.total_cents === "number" ? orcamento.total_cents : 0;
+    return sum + (totalOrcamento > 0 ? totalOrcamento : (lead.value_cents ?? 0));
+  }, 0);
   const accentStyle: CSSProperties | undefined = stage.color
     ? { backgroundColor: stage.color }
     : undefined;
@@ -68,7 +73,10 @@ export function StageColumn({
           style={accentStyle}
           aria-hidden
         />
-        <h2 className="flex-1 truncate text-sm font-semibold text-text">{stage.name}</h2>
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-text">{stage.name}</h2>
+        <span className="shrink-0 text-[11px] font-semibold tabular-nums text-text-muted" title="Soma dos valores desta etapa">
+          {formatBRL(totalCents)}
+        </span>
         <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-medium tabular-nums text-text-muted">
           {leads.length}
         </span>
