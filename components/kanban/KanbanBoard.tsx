@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -167,6 +167,7 @@ export function KanbanBoard({
   } | null>(null);
 
   const [pendingLostLead, setPendingLostLead] = useState<Lead | null>(null);
+  const suppressDossierUntil = useRef(0);
 
   const [scheduleData, setScheduleData] = useState("");
   const [scheduleHora, setScheduleHora] = useState("09:00");
@@ -307,6 +308,7 @@ export function KanbanBoard({
       const destStageName = destStage?.name ?? "";
 
       if (destStage?.is_lost || /perdid[oa]|cancelad[oa]/i.test(destStageName)) {
+        suppressDossierUntil.current = Date.now() + 800;
         setPendingLostLead(lead);
         return;
       }
@@ -566,7 +568,10 @@ export function KanbanBoard({
             cardLayout={cardLayout}
             selectedLeadIds={selectedLeadIds}
             onSelect={handleSelect}
-            onOpen={setDossieId}
+            onOpen={(leadId) => {
+              if (Date.now() < suppressDossierUntil.current) return;
+              setDossieId(leadId);
+            }}
           />
         ))}
       </div>
