@@ -1,0 +1,22 @@
+{
+  "feature": "calendar-vivo",
+  "status": "implemented",
+  "inputs": [
+    { "from": "app/app/calendar", "to": "calendar-core", "kind": "human-command" },
+    { "from": "lib/mcp/tools/calendar", "to": "calendar-core", "kind": "agent-command" },
+    { "from": "google-calendar", "to": "calendar-sync", "kind": "external-event" },
+    { "from": "docker/scheduler", "to": "calendar-sync", "kind": "recurring-renewal" }
+  ],
+  "outputs": [
+    { "from": "calendar-core", "to": "calendar_events", "kind": "tenant-state" },
+    { "from": "calendar-core", "to": "calendar_event_history", "kind": "visible-history" },
+    { "from": "calendar-sync", "to": "google-calendar", "kind": "external-event" }
+  ],
+  "continuity": {
+    "shared_core": "lib/calendar/service.ts",
+    "human_surface": "/app/calendar",
+    "agent_surface": "MCP calendar tools"
+  },
+  "failure_surface": "/app/calendar?tab=integrations",
+  "feedback": "sync_status and calendar_event_history"
+}

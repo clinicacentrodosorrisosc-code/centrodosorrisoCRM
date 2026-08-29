@@ -10,6 +10,15 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 ### Adicionado
 
+- **Agenda integrada para equipes e agentes.** A nova área de Calendar permite criar,
+  editar, cancelar e consultar agendamentos por membro, lead, contato e categoria, com
+  visualizações mensal e semanal, histórico auditável e cores por atendente. Também inclui
+  conexão opcional com Google Calendar por OAuth da própria instalação, sincronização de ida
+  e volta e ferramentas MCP para os agentes consultarem disponibilidade e administrarem
+  compromissos. Para ativar o Google Calendar, o operador precisa configurar as três novas
+  variáveis `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET` e
+  `GOOGLE_CALENDAR_WEBHOOK_SECRET` documentadas no `.env.example`.
+
 - **O agente de atualização passa a fixar sozinho a versão que ficou solta**, em até 5
   minutos, sem você fazer nada — ele grava a versão que já está rodando. O que ele **nunca**
   faz é mexer numa configuração que você escreveu à mão: se você escolheu acompanhar um canal

@@ -63,6 +63,7 @@ import {
   crmSetWebhookSourceActive,
   crmUpdateStage,
 } from "./operacao";
+import { CALENDAR_MCP_TOOLS } from "./calendar";
 import {
   crmScheduleFollowup,
   crmCancelFollowup,
@@ -112,6 +113,7 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmListAvailableAttendants,
   crmListHumanCases,
   crmGetHumanCase,
+  ...CALENDAR_MCP_TOOLS,
   // write
   crmCreateLead,
   crmUpdateLead,

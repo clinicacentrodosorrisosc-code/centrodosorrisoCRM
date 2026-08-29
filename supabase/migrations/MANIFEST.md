@@ -214,3 +214,5 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 - **Compliance**: lgpd_requests
 - **Ops**: incidents
 - **Lembretes** (0161–0163): pipeline_reminder_configs, pipeline_reminder_sent_log
+
+- **Calendar** (0164): calendar_event_types, calendar_member_settings, calendar_connections, calendar_events, calendar_event_history — categorias multi-nicho, agendas individuais, Google BYO e trilha append-only.
