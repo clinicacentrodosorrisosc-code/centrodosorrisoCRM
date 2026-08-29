@@ -105,7 +105,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
 
   // Estados dos módulos desplegáveis (acordeões)
   const [orcamentoCollapsed, setOrcamentoCollapsed] = useState(true);
-  const [agendamentoCollapsed, setAgendamentoCollapsed] = useState(false);
+  const [agendamentoCollapsed, setAgendamentoCollapsed] = useState(true);
   const [tarefasCollapsed, setTarefasCollapsed] = useState(true);
 
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
@@ -337,7 +337,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
           <button
             type="button"
             onClick={() => setOrcamentoCollapsed(!orcamentoCollapsed)}
-            className="w-full flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 transition-colors text-left"
+            className="flex w-full items-center justify-between bg-muted/25 px-3 py-2.5 text-left transition-colors hover:bg-muted/45"
             aria-expanded={!orcamentoCollapsed}
           >
             <div className="flex items-center gap-2">
@@ -369,17 +369,11 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
         {/* ========================================================= */}
         {/* SEÇÃO 2: AGENDAMENTO (DESPLEGÁVEL)                        */}
         {/* ========================================================= */}
-        <div className={`rounded-xl border overflow-hidden transition-all shadow-xs ${
-          watchedStatus === "faltou"
-            ? "border-red-500/40 bg-red-500/5 dark:bg-red-950/20"
-            : watchedStatus === "compareceu"
-              ? "border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20"
-              : "border-sky-500/30 bg-sky-500/5"
-        }`}>
+        <div className="overflow-hidden rounded-lg border border-border/70 bg-card transition-colors">
           <button
             type="button"
             onClick={() => setAgendamentoCollapsed(!agendamentoCollapsed)}
-            className="w-full flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 transition-colors text-left"
+            className="flex w-full items-center justify-between bg-muted/25 px-3 py-2.5 text-left transition-colors hover:bg-muted/45"
             aria-expanded={!agendamentoCollapsed}
           >
             <div className="flex items-center gap-2 flex-wrap">
@@ -531,7 +525,7 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
           <button
             type="button"
             onClick={() => setTarefasCollapsed(!tarefasCollapsed)}
-            className="w-full flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 transition-colors text-left"
+            className="flex w-full items-center justify-between bg-muted/25 px-3 py-2.5 text-left transition-colors hover:bg-muted/45"
             aria-expanded={!tarefasCollapsed}
           >
             <div className="flex items-center gap-2">
@@ -572,13 +566,13 @@ export function LeadFieldsForm({ lead, pipelineId, onSaved, onCancel }: Props) {
           if (!hasMetaAd) return null;
 
           return (
-            <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 space-y-2 text-xs">
+            <div className="space-y-1 rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-[11px]">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-semibold">
+                <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
                   <Sparkle size={14} weight="fill" />
-                  <span>Anúncio de Origem (Meta Ads / WhatsApp)</span>
+                  <span>Anúncio de origem</span>
                 </div>
-                <span className="text-[10px] bg-blue-500/15 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono font-medium">
+                <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono font-medium">
                   Click-to-WhatsApp
                 </span>
               </div>

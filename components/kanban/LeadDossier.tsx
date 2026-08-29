@@ -94,6 +94,18 @@ export function LeadDossier({
   });
 
   const conversationId = directConversationId || fetchedConvData || null;
+  const { data: contactData } = useQuery({
+    queryKey: ["contact-summary", lead.contact_id],
+    queryFn: async () => {
+      if (!lead.contact_id) return null;
+      const res = await apiClient.get<{ data: { phone_number: string | null } }>(
+        `/api/v1/contacts/${lead.contact_id}`,
+      );
+      return res.data;
+    },
+    enabled: open && !!lead.contact_id,
+    staleTime: 30_000,
+  });
 
   const customFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
   const sourceMeta = (lead.source_metadata ?? {}) as Record<string, unknown>;
@@ -106,6 +118,7 @@ export function LeadDossier({
   const agendamentoData = String(customFields.agendamento_data ?? "").trim();
   const agendamentoHora = String(customFields.agendamento_hora ?? "").trim();
   const agendamentoStatus = String(customFields.agendamento_status ?? "agendado");
+  const phone = String(contactData?.phone_number ?? customFields.phone ?? "").trim();
 
   async function handleHeaderMarcarPresenca(status: "compareceu" | "faltou") {
     if (status === "compareceu") {
@@ -152,9 +165,20 @@ export function LeadDossier({
         <SheetHeader className="shrink-0 border-b border-border bg-card px-4 py-3.5 space-y-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <SheetTitle className="text-base font-semibold leading-tight text-text">
-                {lead.title}
-              </SheetTitle>
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <SheetTitle className="truncate text-base font-semibold leading-tight text-text">
+                  {lead.title}
+                </SheetTitle>
+                {phone && (
+                  <a
+                    href={`tel:${phone}`}
+                    className="font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                    title="Ligar para o contato"
+                  >
+                    {phone}
+                  </a>
+                )}
+              </div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
                 <span className="font-semibold text-primary tabular-nums">
                   {formatBRL(lead.value_cents, lead.currency)}
@@ -280,11 +304,11 @@ export function LeadDossier({
 
           {/* Anúncio de Origem Meta Ads / Campanha (sempre visível no topo do Dossiê) */}
           {hasMetaAd && (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-1.5 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1 text-[11px]">
               <div className="flex items-center gap-1.5 min-w-0">
-                <Sparkle size={13} weight="fill" className="text-blue-600 dark:text-blue-400 shrink-0" />
-                <span className="font-semibold text-blue-700 dark:text-blue-300 shrink-0">
-                  Anúncio de Origem:
+                <Sparkle size={13} weight="fill" className="shrink-0 text-muted-foreground" />
+                <span className="shrink-0 font-medium text-muted-foreground">
+                  Anúncio:
                 </span>
                 {adHeadline ? (
                   <span className="font-medium text-foreground truncate" title={adHeadline}>
@@ -305,7 +329,7 @@ export function LeadDossier({
                     Ver Anúncio ↗
                   </a>
                 )}
-                <span className="text-[10px] bg-blue-500/15 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono font-medium">
+                <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono font-medium">
                   {ctwaClid ? "Meta Ads (CTWA)" : (lead.source || "Ads")}
                 </span>
               </div>
