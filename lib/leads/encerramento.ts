@@ -25,6 +25,8 @@ import { ApiError } from "@/lib/api/types";
 import { audit } from "@/lib/audit";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { registraFalhaDeAtividade } from "@/lib/leads/activity-write-failure";
+import { createContactHandler } from "@/app/api/v1/contacts/_handler";
+import type { ContactCreate } from "@/lib/schemas";
 
 /** Como a demanda terminou. Não há terceira: encerrar é ganhar ou perder. */
 export type DesfechoDaDemanda = "won" | "lost";
@@ -131,6 +133,30 @@ export async function encerraDemanda(
     stage_id: (stage as { id: string }).id,
     updated_at: new Date().toISOString(),
   };
+  if (input.desfecho === "lost" && !(lead as { contact_id?: string | null }).contact_id) {
+    const customFields = ((lead as { custom_fields?: Record<string, unknown> }).custom_fields ?? {}) as Record<string, unknown>;
+    const sourceMetadata = ((lead as { source_metadata?: Record<string, unknown> }).source_metadata ?? {}) as Record<string, unknown>;
+    const valor = (...keys: string[]): string | undefined => {
+      const all = { ...sourceMetadata, ...customFields };
+      const key = Object.keys(all).find((candidate) => keys.includes(candidate.toLowerCase()));
+      const value = key ? all[key] : undefined;
+      return typeof value === "string" && value.trim() ? value.trim() : undefined;
+    };
+    const rawPhone = valor("phone", "telefone", "phone_number");
+    const rawEmail = valor("email", "e-mail");
+    const phone = rawPhone && /^\+\d{8,15}$/.test(rawPhone) ? rawPhone : undefined;
+    const email = rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : undefined;
+    const title = String((lead as { title?: string }).title ?? "Contato perdido").trim();
+    const contact = await createContactHandler(supabase, ctx, {
+      name: valor("contact_name", "nome", "name") ?? title,
+      display_name: valor("contact_name", "nome", "name") ?? title,
+      ...(phone ? { phone_number: phone } : {}),
+      ...(email ? { email } : {}),
+      source: "lead_perdido",
+      source_metadata: { lead_id: input.leadId },
+    } satisfies ContactCreate);
+    patch.contact_id = contact.contact.id;
+  }
   if (input.desfecho === "lost") patch.lost_reason = input.motivo;
 
   const { error: updErr } = await supabase
