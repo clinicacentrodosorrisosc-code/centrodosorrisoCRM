@@ -185,17 +185,14 @@ async function withScores(
 ): Promise<{ leads: Lead[]; error: string | null }> {
   if (leads.length === 0) return { leads, error: null };
 
-  const { data, error } = await supabase
-    .from("crm_lead_scores")
-    .select(
-      "lead_id, ai_probability, ai_probability_reason, ai_probability_band, ai_probability_evidence, ai_probability_at",
-    )
-    .eq("organization_id", organizationId)
-    .in(
-      "lead_id",
-      leads.map((l) => l.id),
-    );
-  if (error) return { leads, error: error.message };
+  const scoreRows: unknown[] = [];
+  for (let offset = 0; offset < leads.length; offset += 100) {
+    const ids = leads.slice(offset, offset + 100).map((l) => l.id);
+    const { data, error } = await supabase.from("crm_lead_scores").select("lead_id, ai_probability, ai_probability_reason, ai_probability_band, ai_probability_evidence, ai_probability_at").eq("organization_id", organizationId).in("lead_id", ids);
+    if (error) return { leads, error: error.message };
+    scoreRows.push(...(data ?? []));
+  }
+  const data = scoreRows;
 
   const porLead = new Map<string, NonNullable<Lead["score"]>>();
   for (const row of (data ?? []) as Array<{
@@ -251,13 +248,14 @@ async function withConversas(
   const contactIds = [...new Set(leads.map((l) => l.contact_id).filter((c): c is string => !!c))];
   if (contactIds.length === 0) return { leads, error: null };
 
-  const { data, error } = await supabase
-    .from("conversations")
-    .select("id, contact_id, last_message_preview, last_message_at, unread_count_for_assignee")
-    .eq("organization_id", organizationId)
-    .in("contact_id", contactIds)
-    .order("last_message_at", { ascending: false, nullsFirst: false });
-  if (error) return { leads, error: error.message };
+  const conversationRows: unknown[] = [];
+  for (let offset = 0; offset < contactIds.length; offset += 100) {
+    const ids = contactIds.slice(offset, offset + 100);
+    const { data, error } = await supabase.from("conversations").select("id, contact_id, last_message_preview, last_message_at, unread_count_for_assignee").eq("organization_id", organizationId).in("contact_id", ids).order("last_message_at", { ascending: false, nullsFirst: false });
+    if (error) return { leads, error: error.message };
+    conversationRows.push(...(data ?? []));
+  }
+  const data = conversationRows;
 
   const porContato = new Map<string, NonNullable<Lead["conversa"]>>();
   for (const row of (data ?? []) as Array<{
