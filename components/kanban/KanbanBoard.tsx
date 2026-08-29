@@ -42,6 +42,7 @@ import {
 } from "@/lib/ui/icons";
 import { StageColumn } from "./StageColumn";
 import { LeadDossier } from "./LeadDossier";
+import { LoseLeadDialog } from "./LoseLeadDialog";
 
 interface KanbanBoardProps {
   pipelineId: string;
@@ -164,6 +165,8 @@ export function KanbanBoard({
     destStageName: string;
     newPosition: number;
   } | null>(null);
+
+  const [pendingLostLead, setPendingLostLead] = useState<Lead | null>(null);
 
   const [scheduleData, setScheduleData] = useState("");
   const [scheduleHora, setScheduleHora] = useState("09:00");
@@ -302,6 +305,11 @@ export function KanbanBoard({
       const destStageId = destination.droppableId;
       const destStage = data.stages.find((s) => s.id === destStageId);
       const destStageName = destStage?.name ?? "";
+
+      if (destStage?.is_lost || /perdid[oa]|cancelad[oa]/i.test(destStageName)) {
+        setPendingLostLead(lead);
+        return;
+      }
 
       if (/n[aã]o\s*compareceu|faltou|no[-\s]?show/i.test(destStageName)) {
         toast.error(
@@ -573,6 +581,13 @@ export function KanbanBoard({
           ownerNames={ownerNames}
         />
       )}
+
+      <LoseLeadDialog
+        open={Boolean(pendingLostLead)}
+        onOpenChange={(open) => { if (!open) setPendingLostLead(null); }}
+        leadId={pendingLostLead?.id ?? ""}
+        pipelineId={pipelineId}
+      />
 
       {/* Modal de Agendamento Obrigatório ao Mover para Agendado */}
       <Dialog
