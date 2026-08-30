@@ -193,21 +193,25 @@ export async function GET(req: NextRequest): Promise<Response> {
     .gte("created_at", fromDate.toISOString());
 
   // 3. Etapas do funil (busca antecipada para identificar estágios de ganho)
-  const { data: defaultPipeline } = await supabase
+  const { data: pipelines } = await supabase
     .from("crm_pipelines")
-    .select("id")
+    .select("id, name")
     .eq("organization_id", activeOrg.orgId)
     .order("is_default", { ascending: false })
     .order("position", { ascending: true })
     .eq("is_archived", false)
-    .limit(1)
-    .maybeSingle();
+;
+
+  const commercialPipeline = (pipelines ?? []).find((pipeline) =>
+    pipeline.name.toLocaleLowerCase("pt-BR").includes("comercial"),
+  );
+  const salesPipeline = commercialPipeline ?? pipelines?.[0] ?? null;
 
   const { data: stages } = await supabase
     .from("crm_stages")
     .select("id, name, color, is_won, is_lost")
     .eq("organization_id", activeOrg.orgId)
-    .eq("pipeline_id", defaultPipeline?.id ?? "00000000-0000-0000-0000-000000000000")
+    .eq("pipeline_id", salesPipeline?.id ?? "00000000-0000-0000-0000-000000000000")
     .eq("is_archived", false)
     .order("position", { ascending: true });
 
@@ -238,7 +242,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     logger.error("[dashboard/overview] Falha ao consultar leads", { error: leadsError.message });
   }
 
-  const openLeads = leadsAbertosDoFunilPadrao(allLeads ?? [], defaultPipeline?.id ?? null);
+  const openLeads = leadsAbertosDoFunilPadrao(allLeads ?? [], salesPipeline?.id ?? null);
 
   let totalOpenValueCents = 0;
   let approvedBudgetsCount = 0;
