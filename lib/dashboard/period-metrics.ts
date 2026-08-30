@@ -25,11 +25,11 @@ export function valorRecebidoNoPeriodo(orcamento: OrcamentoLead | undefined, ini
   );
 }
 
-export function leadsAbertosDoFunilPadrao<T extends DashboardLeadMetricRow>(
-  leads: T[], pipelineId: string | null,
+export function leadsAbertosDosFunisComerciais<T extends DashboardLeadMetricRow>(
+  leads: T[], pipelineIds: ReadonlySet<string>,
 ): T[] {
   return leads.filter((lead) =>
-    pipelineId !== null && lead.pipeline_id === pipelineId && lead.status === "open",
+    lead.pipeline_id !== null && pipelineIds.has(lead.pipeline_id) && lead.status === "open",
   );
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OrcamentoLead } from "@/lib/types/orcamento";
-import { leadsAbertosDoFunilPadrao, pagamentosRecebidosNoPeriodo, valorDoCardKanban, valorRecebidoNoPeriodo } from "./period-metrics";
+import { leadsAbertosDosFunisComerciais, pagamentosRecebidosNoPeriodo, valorDoCardKanban, valorRecebidoNoPeriodo } from "./period-metrics";
 
 const inicio = new Date("2026-08-01T00:00:00.000Z");
 const fim = new Date("2026-08-31T23:59:59.999Z");
@@ -22,8 +22,9 @@ describe("métricas do dashboard por período", () => {
       { ...base, pipeline_id: "padrao" },
       { ...base, pipeline_id: "outro" },
       { ...base, pipeline_id: "padrao", status: "won" },
+      { ...base, pipeline_id: "outro-comercial" },
     ];
-    expect(leadsAbertosDoFunilPadrao(leads, "padrao")).toEqual([leads[0]]);
+    expect(leadsAbertosDosFunisComerciais(leads, new Set(["padrao", "outro-comercial"]))).toEqual([leads[0], leads[3]]);
   });
 
   it("usa o valor do card no Kanban mesmo se o or?amento interno estiver zerado", () => {

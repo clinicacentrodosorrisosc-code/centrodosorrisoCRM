@@ -24,7 +24,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { OrcamentoLead } from "@/lib/types/orcamento";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { logger } from "@/lib/logger";
-import { dentroDoPeriodo, leadsAbertosDoFunilPadrao, pagamentosRecebidosNoPeriodo, valorDoCardKanban, valorRecebidoNoPeriodo } from "@/lib/dashboard/period-metrics";
+import { dentroDoPeriodo, leadsAbertosDosFunisComerciais, pagamentosRecebidosNoPeriodo, valorDoCardKanban, valorRecebidoNoPeriodo } from "@/lib/dashboard/period-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -202,16 +202,19 @@ export async function GET(req: NextRequest): Promise<Response> {
     .eq("is_archived", false)
 ;
 
-  const commercialPipeline = (pipelines ?? []).find((pipeline) =>
+  const commercialPipelines = (pipelines ?? []).filter((pipeline) =>
     pipeline.name.toLocaleLowerCase("pt-BR").includes("comercial"),
   );
-  const salesPipeline = commercialPipeline ?? pipelines?.[0] ?? null;
+  const salesPipelines = commercialPipelines.length > 0
+    ? commercialPipelines
+    : pipelines?.slice(0, 1) ?? [];
+  const salesPipelineIds = new Set(salesPipelines.map((pipeline) => pipeline.id));
 
   const { data: stages } = await supabase
     .from("crm_stages")
     .select("id, name, color, is_won, is_lost")
     .eq("organization_id", activeOrg.orgId)
-    .eq("pipeline_id", salesPipeline?.id ?? "00000000-0000-0000-0000-000000000000")
+    .in("pipeline_id", [...salesPipelineIds])
     .eq("is_archived", false)
     .order("position", { ascending: true });
 
@@ -242,7 +245,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     logger.error("[dashboard/overview] Falha ao consultar leads", { error: leadsError.message });
   }
 
-  const openLeads = leadsAbertosDoFunilPadrao(allLeads ?? [], salesPipeline?.id ?? null);
+  const openLeads = leadsAbertosDosFunisComerciais(allLeads ?? [], salesPipelineIds);
 
   let totalOpenValueCents = 0;
   let approvedBudgetsCount = 0;
