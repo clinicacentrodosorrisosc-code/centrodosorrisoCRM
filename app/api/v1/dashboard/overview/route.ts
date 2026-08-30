@@ -68,7 +68,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const [stagesResult, leadsResult, conversationsResult] = await Promise.all([
     supabase.from("crm_stages").select("id, name, position, is_won, is_lost").eq("organization_id", authz.org.orgId).eq("pipeline_id", pipeline.id).eq("is_archived", false).order("position"),
     supabase.from("crm_leads").select("id, status, stage_id, value_cents, custom_fields, created_at, closed_at, owner_user_id, title").eq("organization_id", authz.org.orgId).eq("pipeline_id", pipeline.id),
-    supabase.from("conversations").select("id, created_at, status, status_changed_at").eq("organization_id", authz.org.orgId).eq("channel", "whatsapp").gte("created_at", from.toISOString()),
+    supabase.from("conversations").select("id, created_at, status, last_inbound_at, last_outbound_at").eq("organization_id", authz.org.orgId).eq("channel", "whatsapp"),
   ]);
   const queryError = stagesResult.error ?? leadsResult.error ?? conversationsResult.error;
   if (queryError) return fail("internal_error", queryError.message, 500, { requestId });
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     return { date: dayKey(date), label: labelDate(date), count: rows.length, value_cents: rows.reduce((sum, lead) => sum + leadValueCents(lead), 0) };
   });
 
-  const terminalStatuses = new Set(["closed", "archived"]);
+  const terminalStatuses = new Set(["closed", "archived", "resolved"]);
   const dailyByMetric = Array.from({ length: parsed.data.days }, (_, index) => {
     const date = new Date(from.getTime() + index * 86_400_000);
     const dateKey = dayKey(date);
@@ -153,10 +153,23 @@ export async function GET(req: NextRequest): Promise<Response> {
     } as { date: string; label: string } & Record<MetricKey, DailyMetric>;
   });
 
-  const started = conversationsResult.data ?? [];
-  const finalized = started.filter((conversation) => terminalStatuses.has(conversation.status) && new Date(conversation.status_changed_at) >= from);
-  const active = started.filter((conversation) => !terminalStatuses.has(conversation.status));
+  const conversations = conversationsResult.data ?? [];
+  const started = conversations.filter((conversation) => new Date(conversation.created_at) >= from);
+  const windowFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const active = conversations.filter((conversation) => !terminalStatuses.has(conversation.status) && conversation.last_inbound_at && new Date(conversation.last_inbound_at) >= windowFrom);
+  const inConversationWindow = active;
+  const awaiting = conversations.filter((conversation) => {
+    if (terminalStatuses.has(conversation.status)) return false;
+    if (!conversation.last_inbound_at) return false;
+    if (!conversation.last_outbound_at) return true;
+    return new Date(conversation.last_inbound_at) > new Date(conversation.last_outbound_at);
+  });
   const hourly = Array.from({ length: 7 }, (_, weekday) => ({ weekday, hours: Array.from({ length: 24 }, (_, hour) => started.filter((conversation) => { const date = new Date(conversation.created_at); return date.getDay() === weekday && date.getHours() === hour; }).length) }));
+  const dailyStarted = Array.from({ length: parsed.data.days }, (_, index) => {
+    const date = new Date(from.getTime() + index * 86_400_000);
+    const dateKey = dayKey(date);
+    return { date: dateKey, label: labelDate(date), count: started.filter((conversation) => conversation.created_at.slice(0, 10) === dateKey).length };
+  });
 
   return ok({
     period_days: parsed.data.days, from_date: from.toISOString(), to_date: now.toISOString(), pipeline_name: pipeline.name, has_pipeline: true,
@@ -168,9 +181,9 @@ export async function GET(req: NextRequest): Promise<Response> {
       em_aberto: { count: openBudget.length, value_cents: openBudget.reduce((sum, lead) => sum + leadValueCents(lead), 0) },
       daily, por_responsavel: ownerRows, servicos: Array.from(services.values()).sort((a, b) => b.count - a.count || b.value_cents - a.value_cents).slice(0, 6), responsaveis: ownerRows.slice(0, 6),
       daily_by_metric: dailyByMetric,
-    },
       por_responsavel_por_metrica: ownerRowsByMetric,
-    multiatendimento: { total_iniciados: started.length, finalizados: finalized.length, em_aberto: active.length, aguardando: active.filter((conversation) => conversation.status === "open").length, por_hora: hourly },
+    },
+    multiatendimento: { total_iniciados: started.length, em_aberto: inConversationWindow.length, aguardando: awaiting.length, por_hora: hourly, daily_iniciados: dailyStarted },
   }, { requestId });
 }
 
@@ -183,5 +196,5 @@ function emptyBusinessData(days: number, from: Date) {
 }
 
 function emptyConversationData() {
-  return { total_iniciados: 0, finalizados: 0, em_aberto: 0, aguardando: 0, por_hora: Array.from({ length: 7 }, (_, weekday) => ({ weekday, hours: Array.from({ length: 24 }, () => 0) })) };
+  return { total_iniciados: 0, em_aberto: 0, aguardando: 0, por_hora: Array.from({ length: 7 }, (_, weekday) => ({ weekday, hours: Array.from({ length: 24 }, () => 0) })), daily_iniciados: [] };
 }

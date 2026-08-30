@@ -31,12 +31,11 @@ type BusinessData = {
     por_responsavel: Ranking[];
     por_responsavel_por_metrica?: Partial<Record<MetricKey, Ranking[]>>;
   };
-    por_responsavel_por_metrica?: Partial<Record<MetricKey, Ranking[]>>;
 };
 
 const labels: Record<MetricKey, { title: string; detail: string; color: string }> = {
   criados: { title: "Total criados", detail: "Cards criados no periodo selecionado", color: "text-blue-600" },
-  ganhos: { title: "Total ganhos", detail: "Valores efetivamente recebidos de pacientes", color: "text-emerald-600" },
+  ganhos: { title: "Total recebido", detail: "Valores efetivamente recebidos de pacientes", color: "text-emerald-600" },
   perdidos: { title: "Total perdidos", detail: "Negocios fechados como perdidos no periodo", color: "text-rose-600" },
   em_aberto: { title: "Total em aberto", detail: "Orcamentos enviados ou aprovados", color: "text-violet-600" },
   negocios: { title: "Total negocios", detail: "Cards ativos ate a etapa Orcamento", color: "text-sky-600" },
