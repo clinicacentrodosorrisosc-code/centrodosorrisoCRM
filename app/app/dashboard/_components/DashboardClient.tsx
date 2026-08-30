@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import { BusinessDashboardPanel } from "./BusinessDashboardPanel";
 type Metric = { count: number; value_cents: number };
 type Ranking = { name: string; count: number; value_cents: number; percentage?: number };
 type DashboardData = {
@@ -40,7 +41,7 @@ export function DashboardClient({ orgName }: { orgName: string }) {
     <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><p className="text-sm font-medium text-primary">Visao geral</p><h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1><p className="mt-1 text-sm text-muted-foreground">Acompanhe os resultados de {orgName} no periodo selecionado.</p></div><div className="flex flex-wrap items-center gap-2"><div className="flex rounded-lg border border-border bg-surface p-1">{dayOptions.map((option) => <button key={option} type="button" onClick={() => setDays(option)} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${days === option ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>{option === 365 ? "12 meses" : `${option} dias`}</button>)}</div><Button variant="outline" size="icon" aria-label="Atualizar dashboard" onClick={() => setDays((current) => current)}><RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} /></Button></div></header>
     {error ? <Card className="border-destructive/40 p-5 text-sm text-destructive">{error}</Card> : null}
     <Tabs defaultValue="negocios" className="space-y-5"><TabsList className="h-auto w-full justify-start gap-1 rounded-xl border border-border bg-surface p-1.5 sm:w-auto"><TabsTrigger value="negocios" className="px-4 py-2">Negocios</TabsTrigger><TabsTrigger value="multiatendimento" className="px-4 py-2">Multiatendimento</TabsTrigger><TabsTrigger value="atividades" className="px-4 py-2">Atividades</TabsTrigger></TabsList>
-      <TabsContent value="negocios" className="mt-0"><BusinessesPanel data={data} loading={loading} /></TabsContent>
+      <TabsContent value="negocios" className="mt-0"><BusinessDashboardPanel data={data} loading={loading} /></TabsContent>
       <TabsContent value="multiatendimento" className="mt-0"><MultiAttendancePanel data={data} loading={loading} /></TabsContent>
       <TabsContent value="atividades" className="mt-0"><ActivitiesPanel /></TabsContent>
     </Tabs>

@@ -23,12 +23,16 @@ type LeadRow = DashboardLead & {
   created_at: string;
   closed_at: string | null;
   owner_user_id: string | null;
+  stage_changed_at: string | null;
   title: string;
 };
 
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const dayKey = (date: Date) => date.toISOString().slice(0, 10);
 const labelDate = (date: Date) => new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date);
+type MetricKey = "criados" | "ganhos" | "perdidos" | "em_aberto" | "negocios";
+type DailyMetric = { count: number; value_cents: number };
+
 
 const serviceName = (lead: LeadRow) => {
   const fields = lead.custom_fields ?? {};
@@ -73,9 +77,11 @@ export async function GET(req: NextRequest): Promise<Response> {
   const leads = (leadsResult.data ?? []) as LeadRow[];
   const negotiation = leads.filter((lead) => isNegotiationLead(lead, stages));
   const lost = leads.filter((lead) => lead.status === "lost" && lead.closed_at && new Date(lead.closed_at) >= from);
+  const created = leads.filter((lead) => new Date(lead.created_at) >= from);
   const openBudget = leads.filter(isOpenBudgetLead);
   const received = leads.flatMap((lead) => receivedPaymentsInPeriod(lead, from, now));
   const totalNegotiationValue = negotiation.reduce((sum, lead) => sum + leadValueCents(lead), 0);
+  const receivedRows = leads.flatMap((lead) => receivedPaymentsInPeriod(lead, from, now).map((payment) => ({ lead, payment })));
 
   const byOwner = new Map<string, { name: string; count: number; value_cents: number }>();
   negotiation.forEach((lead) => {
@@ -86,6 +92,32 @@ export async function GET(req: NextRequest): Promise<Response> {
     byOwner.set(key, current);
   });
   const ownerRows = Array.from(byOwner.values()).sort((a, b) => b.value_cents - a.value_cents || b.count - a.count).map((row) => ({ ...row, percentage: totalNegotiationValue ? Math.round((row.value_cents / totalNegotiationValue) * 100) : 0 }));
+
+  const rankOwners = (items: Array<{ lead: LeadRow; value_cents: number }>) => {
+    const rows = new Map<string, { name: string; count: number; value_cents: number }>();
+    items.forEach(({ lead, value_cents }) => {
+      const key = lead.owner_user_id ?? "unassigned";
+      const current = rows.get(key) ?? {
+        name: key === "unassigned" ? "Sem responsavel" : "Responsavel",
+        count: 0,
+        value_cents: 0,
+      };
+      current.count += 1;
+      current.value_cents += value_cents;
+      rows.set(key, current);
+    });
+    const total = Array.from(rows.values()).reduce((sum, item) => sum + item.value_cents, 0);
+    return Array.from(rows.values())
+      .sort((a, b) => b.value_cents - a.value_cents || b.count - a.count)
+      .map((item) => ({ ...item, percentage: total ? Math.round((item.value_cents / total) * 100) : 0 }));
+  };
+  const ownerRowsByMetric: Record<MetricKey, Array<{ name: string; count: number; value_cents: number; percentage: number }>> = {
+    criados: rankOwners(created.map((lead) => ({ lead, value_cents: leadValueCents(lead) }))),
+    ganhos: rankOwners(receivedRows.map(({ lead, payment }) => ({ lead, value_cents: payment.valor_cents }))),
+    perdidos: rankOwners(lost.map((lead) => ({ lead, value_cents: leadValueCents(lead) }))),
+    em_aberto: rankOwners(openBudget.map((lead) => ({ lead, value_cents: leadValueCents(lead) }))),
+    negocios: ownerRows,
+  };
 
   const services = new Map<string, { name: string; count: number; value_cents: number }>();
   negotiation.forEach((lead) => {
@@ -102,6 +134,25 @@ export async function GET(req: NextRequest): Promise<Response> {
   });
 
   const terminalStatuses = new Set(["closed", "archived"]);
+  const dailyByMetric = Array.from({ length: parsed.data.days }, (_, index) => {
+    const date = new Date(from.getTime() + index * 86_400_000);
+    const dateKey = dayKey(date);
+    const aggregateLeads = (items: LeadRow[], timestamp: (lead: LeadRow) => string | null): DailyMetric => {
+      const rows = items.filter((lead) => timestamp(lead)?.slice(0, 10) === dateKey);
+      return { count: rows.length, value_cents: rows.reduce((sum, lead) => sum + leadValueCents(lead), 0) };
+    };
+    const ganhos = receivedRows.filter(({ payment }) => (payment.criado_em ?? payment.data)?.slice(0, 10) === dateKey);
+    return {
+      date: dateKey,
+      label: labelDate(date),
+      criados: aggregateLeads(created, (lead) => lead.created_at),
+      ganhos: { count: ganhos.length, value_cents: ganhos.reduce((sum, item) => sum + item.payment.valor_cents, 0) },
+      perdidos: aggregateLeads(lost, (lead) => lead.closed_at),
+      em_aberto: aggregateLeads(openBudget, (lead) => lead.created_at),
+      negocios: aggregateLeads(negotiation, (lead) => lead.created_at),
+    } as { date: string; label: string } & Record<MetricKey, DailyMetric>;
+  });
+
   const started = conversationsResult.data ?? [];
   const finalized = started.filter((conversation) => terminalStatuses.has(conversation.status) && new Date(conversation.status_changed_at) >= from);
   const active = started.filter((conversation) => !terminalStatuses.has(conversation.status));
@@ -111,11 +162,14 @@ export async function GET(req: NextRequest): Promise<Response> {
     period_days: parsed.data.days, from_date: from.toISOString(), to_date: now.toISOString(), pipeline_name: pipeline.name, has_pipeline: true,
     negocios: {
       total: { count: negotiation.length, value_cents: totalNegotiationValue },
+      criados: { count: created.length, value_cents: created.reduce((sum, lead) => sum + leadValueCents(lead), 0) },
       ganhos: { count: received.length, value_cents: received.reduce((sum, payment) => sum + payment.valor_cents, 0) },
       perdidos: { count: lost.length, value_cents: lost.reduce((sum, lead) => sum + leadValueCents(lead), 0) },
       em_aberto: { count: openBudget.length, value_cents: openBudget.reduce((sum, lead) => sum + leadValueCents(lead), 0) },
       daily, por_responsavel: ownerRows, servicos: Array.from(services.values()).sort((a, b) => b.count - a.count || b.value_cents - a.value_cents).slice(0, 6), responsaveis: ownerRows.slice(0, 6),
+      daily_by_metric: dailyByMetric,
     },
+      por_responsavel_por_metrica: ownerRowsByMetric,
     multiatendimento: { total_iniciados: started.length, finalizados: finalized.length, em_aberto: active.length, aguardando: active.filter((conversation) => conversation.status === "open").length, por_hora: hourly },
   }, { requestId });
 }

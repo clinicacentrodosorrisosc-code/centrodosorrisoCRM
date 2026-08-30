@@ -154,6 +154,7 @@ const config: Config = {
         24: "var(--space-24)",
         32: "var(--space-32)",
       },
+        58: "14.5rem",
       borderRadius: {
         none: "var(--radius-none)",
         sm: "var(--radius-sm)",
