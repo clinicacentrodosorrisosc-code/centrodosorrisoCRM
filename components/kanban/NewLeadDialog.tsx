@@ -121,7 +121,9 @@ export function NewLeadDialog({
     }
   }, [initialStage, form]);
 
-  // Reset states when opening/closing
+  // Reseta os estados somente quando o diálogo ou seus valores iniciais mudam.
+  // contactsList não pode ser dependência aqui: durante a busca, a query
+  // troca a lista temporariamente e este efeito limparia contactSearch.
   useEffect(() => {
     if (open) {
       setContactSearch("");
@@ -143,26 +145,29 @@ export function NewLeadDialog({
         expected_close_date: "",
       });
 
-      if (contactId) {
-        if (initialContact) {
-          setSelectedContact(initialContact);
-          if (!resolvedTitle && initialContact.name) {
-            form.setValue("title", initialContact.name);
-          }
-        } else {
-          const found = contactsList.find((c) => c.id === contactId);
-          if (found) {
-            setSelectedContact(found);
-            if (!resolvedTitle && found.name) {
-              form.setValue("title", found.name);
-            }
-          }
+      if (contactId && initialContact) {
+        setSelectedContact(initialContact);
+        if (!resolvedTitle && initialContact.name) {
+          form.setValue("title", initialContact.name);
         }
       } else {
         setSelectedContact(null);
       }
     }
-  }, [open, contactId, contactsList, initialTitle, initialContact, initialStage, form]);
+  }, [open, contactId, initialTitle, initialContact, initialStage, form]);
+
+  // Quando o chamador fornece apenas contactId, completa a seleção depois que
+  // a consulta de contatos retorna. Separar este efeito evita resetar a busca.
+  useEffect(() => {
+    if (!open || !contactId || initialContact || selectedContact) return;
+    const found = contactsList.find((c) => c.id === contactId);
+    if (found) {
+      setSelectedContact(found);
+      if (!form.getValues("title").trim() && found.name) {
+        form.setValue("title", found.name);
+      }
+    }
+  }, [open, contactId, initialContact, selectedContact, contactsList, form]);
 
   // Criação rápida de contato inline
   async function handleCreateNewContact() {
