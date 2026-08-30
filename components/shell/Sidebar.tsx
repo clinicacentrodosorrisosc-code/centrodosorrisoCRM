@@ -134,7 +134,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
                           collapsed && "justify-center px-2",
                         )}
                       >
-                        <Icon size={18} weight={isActive ? "fill" : "regular"} aria-hidden />
+                        <Icon size={18} weight={isActive ? "fill" : "regular"} className={item.label === "Inbox" ? "text-[#25D366]" : undefined} aria-hidden />
                         {!collapsed && <span className="truncate">{t(item.label)}</span>}
                         {item.healthDot && (
                           <ConnectionHealthDot
