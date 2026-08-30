@@ -24,7 +24,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { OrcamentoLead } from "@/lib/types/orcamento";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { logger } from "@/lib/logger";
-import { dentroDoPeriodo, leadsAbertosDoFunilNoPeriodo, pagamentosRecebidosNoPeriodo, valorRecebidoNoPeriodo } from "@/lib/dashboard/period-metrics";
+import { dentroDoPeriodo, leadsAbertosDoFunilPadrao, pagamentosRecebidosNoPeriodo, valorRecebidoNoPeriodo } from "@/lib/dashboard/period-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -197,8 +197,10 @@ export async function GET(req: NextRequest): Promise<Response> {
     .from("crm_pipelines")
     .select("id")
     .eq("organization_id", activeOrg.orgId)
-    .eq("is_default", true)
+    .order("is_default", { ascending: false })
+    .order("position", { ascending: true })
     .eq("is_archived", false)
+    .limit(1)
     .maybeSingle();
 
   const { data: stages } = await supabase
@@ -228,7 +230,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   // 4. Negócios e Orçamentos (crm_leads)
   const { data: allLeads, error: leadsError } = await supabase
     .from("crm_leads")
-    .select("id, title, value_cents, stage_id, created_at, contact_id, status, closed_at, custom_fields, source, source_metadata, tags")
+    .select("id, title, value_cents, pipeline_id, stage_id, created_at, contact_id, status, closed_at, custom_fields, source, source_metadata, tags")
     .eq("organization_id", activeOrg.orgId)
     .order("created_at", { ascending: false });
 
@@ -236,8 +238,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     logger.error("[dashboard/overview] Falha ao consultar leads", { error: leadsError.message });
   }
 
-  const defaultStageIds = new Set(stageMap.keys());
-  const openLeads = leadsAbertosDoFunilNoPeriodo(allLeads ?? [], defaultStageIds, fromDate, now);
+  const openLeads = leadsAbertosDoFunilPadrao(allLeads ?? [], defaultPipeline?.id ?? null);
 
   let totalOpenValueCents = 0;
   let approvedBudgetsCount = 0;

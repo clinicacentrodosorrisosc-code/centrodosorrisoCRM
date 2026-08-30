@@ -1,8 +1,7 @@
 import type { OrcamentoLead, PagamentoBaixa } from "@/lib/types/orcamento";
 
 export interface DashboardLeadMetricRow {
-  created_at: string;
-  stage_id: string | null;
+  pipeline_id: string | null;
   status: string;
   closed_at: string | null;
 }
@@ -26,11 +25,10 @@ export function valorRecebidoNoPeriodo(orcamento: OrcamentoLead | undefined, ini
   );
 }
 
-export function leadsAbertosDoFunilNoPeriodo<T extends DashboardLeadMetricRow>(
-  leads: T[], stageIds: ReadonlySet<string>, inicio: Date, fim: Date,
+export function leadsAbertosDoFunilPadrao<T extends DashboardLeadMetricRow>(
+  leads: T[], pipelineId: string | null,
 ): T[] {
   return leads.filter((lead) =>
-    lead.stage_id !== null && stageIds.has(lead.stage_id) && lead.status === "open" &&
-    !lead.closed_at && dentroDoPeriodo(lead.created_at, inicio, fim),
+    pipelineId !== null && lead.pipeline_id === pipelineId && lead.status === "open" && !lead.closed_at,
   );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OrcamentoLead } from "@/lib/types/orcamento";
-import { leadsAbertosDoFunilNoPeriodo, pagamentosRecebidosNoPeriodo, valorRecebidoNoPeriodo } from "./period-metrics";
+import { leadsAbertosDoFunilPadrao, pagamentosRecebidosNoPeriodo, valorRecebidoNoPeriodo } from "./period-metrics";
 
 const inicio = new Date("2026-08-01T00:00:00.000Z");
 const fim = new Date("2026-08-31T23:59:59.999Z");
@@ -19,11 +19,10 @@ describe("métricas do dashboard por período", () => {
   it("mantém somente cards abertos, do funil informado e criados no período", () => {
     const base = { status: "open", closed_at: null };
     const leads = [
-      { ...base, created_at: "2026-08-10T12:00:00.000Z", stage_id: "padrao" },
-      { ...base, created_at: "2026-08-11T12:00:00.000Z", stage_id: "outro" },
-      { ...base, created_at: "2026-07-20T12:00:00.000Z", stage_id: "padrao" },
-      { ...base, created_at: "2026-08-12T12:00:00.000Z", stage_id: "padrao", status: "won" },
+      { ...base, pipeline_id: "padrao" },
+      { ...base, pipeline_id: "outro" },
+      { ...base, pipeline_id: "padrao", status: "won" },
     ];
-    expect(leadsAbertosDoFunilNoPeriodo(leads, new Set(["padrao"]), inicio, fim)).toEqual([leads[0]]);
+    expect(leadsAbertosDoFunilPadrao(leads, "padrao")).toEqual([leads[0]]);
   });
 });

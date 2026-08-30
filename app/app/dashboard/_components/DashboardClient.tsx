@@ -231,7 +231,7 @@ export function DashboardClient({ orgName }: Props) {
               <KpiCard
                 title="Pipeline em Negociação"
                 value={formatCentsBRL(payload.kpis.open_deals_value_cents)}
-                subtitle={`Funil padrão · ${payload.kpis.open_deals_count} ${payload.kpis.open_deals_count === 1 ? "card" : "cards"} no período`}
+                subtitle={`Funil padr\u00e3o · ${payload.kpis.open_deals_count} ${payload.kpis.open_deals_count === 1 ? "card" : "cards"} abertos`}
                 icon={<DollarSign className="h-5 w-5 text-primary" />}
                 highlight={true}
               />
