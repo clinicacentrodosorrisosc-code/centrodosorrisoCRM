@@ -27,7 +27,7 @@ import { NewLeadDialog } from "@/components/kanban/NewLeadDialog";
 import { Button } from "@/components/ui/button";
 import { Bell, Plus, Kanban, Funnel, Gear, DotsThree, Copy } from "@/lib/ui/icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DuplicateLeadsDialog } from "@/components/kanban/DuplicateLeadsDialog";
 import { ReminderConfigDialog } from "@/components/kanban/ReminderConfigDialog";
 import { CardLayoutDialog } from "@/components/kanban/CardLayoutDialog";
 import type { LeadFilters } from "@/lib/kanban/filters";
@@ -121,7 +121,12 @@ export function PipelinePageClient({
         </div>
       </header>
 
-      <Dialog open={duplicatesOpen} onOpenChange={setDuplicatesOpen}><DialogContent><DialogHeader><DialogTitle>Duplicatas neste funil</DialogTitle><DialogDescription>Leads com o mesmo telefone ou título.</DialogDescription></DialogHeader><div className="space-y-2">{(() => { const groups = new Map<string, Array<{ id: string; title: string }>>(); for (const lead of data?.leads ?? []) { const key = lead.title.trim().toLowerCase(); groups.set(key, [...(groups.get(key) ?? []), lead]); } const duplicates = [...groups.values()].filter((g) => g.length > 1); return duplicates.length ? duplicates.map((g) => <div key={g[0]!.id} className="rounded border p-2 text-sm">{g.map((lead) => lead.title).join(" · ")}</div>) : <p className="text-sm text-muted-foreground">Nenhuma duplicata encontrada.</p>; })()}</div></DialogContent></Dialog>
+      <DuplicateLeadsDialog
+        open={duplicatesOpen}
+        onOpenChange={setDuplicatesOpen}
+        leads={data?.leads ?? []}
+        pipelineId={pipelineId}
+      />
       {data && (
         <NewLeadDialog
           open={newOpen}
