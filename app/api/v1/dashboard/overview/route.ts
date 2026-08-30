@@ -32,6 +32,7 @@ const dayKey = (date: Date) => date.toISOString().slice(0, 10);
 const labelDate = (date: Date) => new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date);
 type MetricKey = "criados" | "ganhos" | "perdidos" | "em_aberto" | "negocios";
 type DailyMetric = { count: number; value_cents: number };
+type ResponseTimePoint = { date: string; label: string; average_seconds: number; response_count: number };
 
 
 const serviceName = (lead: LeadRow) => {
@@ -65,12 +66,13 @@ export async function GET(req: NextRequest): Promise<Response> {
     return ok({ period_days: parsed.data.days, from_date: from.toISOString(), to_date: now.toISOString(), pipeline_name: "Funil Comercial", has_pipeline: false, negocios: emptyBusinessData(parsed.data.days, from), multiatendimento: emptyConversationData() }, { requestId });
   }
 
-  const [stagesResult, leadsResult, conversationsResult] = await Promise.all([
+  const [stagesResult, leadsResult, conversationsResult, messagesResult] = await Promise.all([
     supabase.from("crm_stages").select("id, name, position, is_won, is_lost").eq("organization_id", authz.org.orgId).eq("pipeline_id", pipeline.id).eq("is_archived", false).order("position"),
     supabase.from("crm_leads").select("id, status, stage_id, value_cents, custom_fields, created_at, closed_at, owner_user_id, title").eq("organization_id", authz.org.orgId).eq("pipeline_id", pipeline.id),
     supabase.from("conversations").select("id, created_at, status, last_inbound_at, last_outbound_at").eq("organization_id", authz.org.orgId).eq("channel", "whatsapp"),
+    supabase.from("messages").select("conversation_id, direction, sent_at").eq("organization_id", authz.org.orgId).gte("sent_at", from.toISOString()).lte("sent_at", now.toISOString()).order("sent_at", { ascending: true }),
   ]);
-  const queryError = stagesResult.error ?? leadsResult.error ?? conversationsResult.error;
+  const queryError = stagesResult.error ?? leadsResult.error ?? conversationsResult.error ?? messagesResult.error;
   if (queryError) return fail("internal_error", queryError.message, 500, { requestId });
 
   const stages = (stagesResult.data ?? []) as DashboardStage[];
@@ -170,6 +172,35 @@ export async function GET(req: NextRequest): Promise<Response> {
     const dateKey = dayKey(date);
     return { date: dateKey, label: labelDate(date), count: started.filter((conversation) => conversation.created_at.slice(0, 10) === dateKey).length };
   });
+  const whatsappConversationIds = new Set(conversations.map((conversation) => conversation.id));
+  const messagesByConversation = new Map<string, Array<{ direction: string; sent_at: string }>>();
+  for (const message of messagesResult.data ?? []) {
+    if (!whatsappConversationIds.has(message.conversation_id)) continue;
+    const rows = messagesByConversation.get(message.conversation_id) ?? [];
+    rows.push({ direction: message.direction, sent_at: message.sent_at });
+    messagesByConversation.set(message.conversation_id, rows);
+  }
+  const responsePairs: Array<{ date: string; seconds: number }> = [];
+  for (const messages of messagesByConversation.values()) {
+    let pendingInboundAt: number | null = null;
+    for (const message of messages) {
+      const timestamp = Date.parse(message.sent_at);
+      if (!Number.isFinite(timestamp)) continue;
+      if (message.direction === "inbound") {
+        pendingInboundAt = timestamp;
+      } else if (message.direction === "outbound" && pendingInboundAt !== null && timestamp >= pendingInboundAt) {
+        responsePairs.push({ date: dayKey(new Date(pendingInboundAt)), seconds: (timestamp - pendingInboundAt) / 1000 });
+        pendingInboundAt = null;
+      }
+    }
+  }
+  const responseTimeDaily: ResponseTimePoint[] = Array.from({ length: parsed.data.days }, (_, index) => {
+    const date = new Date(from.getTime() + index * 86_400_000);
+    const dateKey = dayKey(date);
+    const pairs = responsePairs.filter((pair) => pair.date === dateKey);
+    return { date: dateKey, label: labelDate(date), average_seconds: pairs.length ? Math.round(pairs.reduce((sum, pair) => sum + pair.seconds, 0) / pairs.length) : 0, response_count: pairs.length };
+  });
+  const responseTimeTotal = responsePairs.length ? Math.round(responsePairs.reduce((sum, pair) => sum + pair.seconds, 0) / responsePairs.length) : 0;
 
   return ok({
     period_days: parsed.data.days, from_date: from.toISOString(), to_date: now.toISOString(), pipeline_name: pipeline.name, has_pipeline: true,
@@ -183,7 +214,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       daily_by_metric: dailyByMetric,
       por_responsavel_por_metrica: ownerRowsByMetric,
     },
-    multiatendimento: { total_iniciados: started.length, em_aberto: inConversationWindow.length, aguardando: awaiting.length, por_hora: hourly, daily_iniciados: dailyStarted },
+    multiatendimento: { total_iniciados: started.length, em_aberto: inConversationWindow.length, aguardando: awaiting.length, por_hora: hourly, daily_iniciados: dailyStarted, tempo_resposta: { media_segundos: responseTimeTotal, respostas: responsePairs.length, diario: responseTimeDaily } },
   }, { requestId });
 }
 
@@ -196,5 +227,5 @@ function emptyBusinessData(days: number, from: Date) {
 }
 
 function emptyConversationData() {
-  return { total_iniciados: 0, em_aberto: 0, aguardando: 0, por_hora: Array.from({ length: 7 }, (_, weekday) => ({ weekday, hours: Array.from({ length: 24 }, () => 0) })), daily_iniciados: [] };
+  return { total_iniciados: 0, em_aberto: 0, aguardando: 0, por_hora: Array.from({ length: 7 }, (_, weekday) => ({ weekday, hours: Array.from({ length: 24 }, () => 0) })), daily_iniciados: [], tempo_resposta: { media_segundos: 0, respostas: 0, diario: [] } };
 }
