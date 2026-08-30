@@ -37,6 +37,8 @@ export interface Lead {
   pipeline_id: string;
   stage_id: string;
   contact_id: string | null;
+  /** Derivado (não é coluna): telefone do contato, usado na detecção de duplicatas. */
+  contact_phone_number?: string | null;
   title: string;
   description: string | null;
   status: LeadStatus;

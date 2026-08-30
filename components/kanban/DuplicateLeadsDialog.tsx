@@ -33,7 +33,7 @@ const CAMPOS: Campo[] = [
 function resumo(campo: Campo["key"], lead: Lead): string {
   if (campo === "title") return lead.title;
   if (campo === "description") return lead.description || "Sem descrição";
-  if (campo === "contact") return lead.contact_id ? `Contato ${lead.contact_id.slice(0, 8)}…` : "Sem contato";
+  if (campo === "contact") return lead.contact_phone_number || "Sem telefone";
   if (campo === "value") return lead.value_cents == null ? "Sem valor" :
     (lead.value_cents / 100).toLocaleString("pt-BR", { style: "currency", currency: lead.currency ?? "BRL" });
   if (campo === "owner") return lead.owner_agent?.name ?? lead.owner_user_id?.slice(0, 8) ?? "Sem responsável";
@@ -127,12 +127,12 @@ export function DuplicateLeadsDialog({
         <DialogHeader>
           <DialogTitle>Encontrar e mesclar duplicatas</DialogTitle>
           <DialogDescription>
-            Escolha o card principal e a origem de cada dado. Os demais cards serão excluídos permanentemente após a transferência do histórico.
+            Cards com o mesmo telefone são agrupados como duplicatas. Escolha o card principal e a origem de cada dado; os demais serão excluídos permanentemente após a transferência do histórico.
           </DialogDescription>
         </DialogHeader>
 
         {grupos.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma duplicata encontrada neste funil.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma duplicata encontrada neste funil pelo telefone.</p>
         ) : (
           <div className="grid min-h-0 flex-1 gap-4 overflow-hidden md:grid-cols-[220px_1fr]">
             <div className="space-y-2 overflow-y-auto border-r pr-3">

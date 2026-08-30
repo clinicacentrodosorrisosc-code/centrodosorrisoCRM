@@ -284,6 +284,36 @@ async function withConversas(
   };
 }
 
+/** Anexa o telefone do contato para a detecção de duplicatas no quadro. */
+async function withContactPhones(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string,
+  leads: Lead[],
+): Promise<{ leads: Lead[]; error: string | null }> {
+  const contactIds = [...new Set(leads.map((lead) => lead.contact_id).filter((id): id is string => !!id))];
+  if (contactIds.length === 0) return { leads, error: null };
+
+  const rows: Array<{ id: string; phone_number: string | null }> = [];
+  for (let offset = 0; offset < contactIds.length; offset += 100) {
+    const ids = contactIds.slice(offset, offset + 100);
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("id, phone_number")
+      .eq("organization_id", organizationId)
+      .in("id", ids);
+    if (error) return { leads, error: error.message };
+    rows.push(...((data ?? []) as Array<{ id: string; phone_number: string | null }>));
+  }
+
+  const phoneByContact = new Map(rows.map((row) => [row.id, row.phone_number]));
+  return {
+    leads: leads.map((lead) => ({
+      ...lead,
+      contact_phone_number: lead.contact_id ? phoneByContact.get(lead.contact_id) ?? null : null,
+    })),
+    error: null,
+  };
+}
 async function withNextActions(
   supabase: Awaited<ReturnType<typeof createClient>>,
   organizationId: string,
@@ -423,10 +453,19 @@ export async function GET(_req: NextRequest, ctx: RouteCtx): Promise<Response> {
     return fail("internal_error", leadsComConversa.error, 500, { requestId });
   }
 
+  const leadsComTelefone = await withContactPhones(
+    supabase,
+    (pipeline as Pipeline).organization_id,
+    leadsComConversa.leads,
+  );
+  if (leadsComTelefone.error) {
+    return fail("internal_error", leadsComTelefone.error, 500, { requestId });
+  }
+
   const board: BoardData = {
     pipeline: pipeline as Pipeline,
     stages: (stages ?? []) as Stage[],
-    leads: leadsComConversa.leads,
+    leads: leadsComTelefone.leads,
   };
 
   return ok(board, { requestId });
