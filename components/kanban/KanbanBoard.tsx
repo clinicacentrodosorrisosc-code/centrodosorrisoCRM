@@ -333,7 +333,7 @@ export function KanbanBoard({
       if (Number.isNaN(newPosition)) return;
 
       // 1. Mover para Agendado
-      if (/agendad[oa]|agendamento|consulta\s*marcada/i.test(destStageName)) {
+      if (/^agendado$/i.test(destStageName.trim())) {
         const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
         setScheduleData(String(custom.agendamento_data ?? ""));
         setScheduleHora(String(custom.agendamento_hora ?? "09:00"));
