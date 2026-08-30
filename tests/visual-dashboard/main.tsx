@@ -10,6 +10,11 @@ function payload(days: number): DashboardOverviewData {
   const factor = days === 7 ? 1 : 3;
   return {
     period_days: days,
+    pipelines: [
+      { id: "pipeline-padrao", name: "Comercial", is_default: true },
+      { id: "pipeline-retencao", name: "Reten??o", is_default: false },
+    ],
+    selected_pipeline_id: "pipeline-padrao",
     kpis: {
       active_conversations: 4,
       new_contacts: 6 * factor,

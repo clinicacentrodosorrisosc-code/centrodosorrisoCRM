@@ -30,6 +30,7 @@ export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
   days: z.coerce.number().int().min(1).max(90).default(30),
+  pipeline_id: z.string().uuid().optional(),
 });
 
 export interface DailyPoint {
@@ -98,6 +99,12 @@ export interface ProcedimentoFechadoItem {
 
 export interface DashboardOverviewData {
   period_days: number;
+  pipelines: {
+    id: string;
+    name: string;
+    is_default: boolean;
+  }[];
+  selected_pipeline_id: string | null;
   kpis: {
     active_conversations: number;
     new_contacts: number;
@@ -160,6 +167,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const url = new URL(req.url);
   const parsed = querySchema.safeParse({
     days: url.searchParams.get("days") ?? 30,
+    pipeline_id: url.searchParams.get("pipeline_id") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -169,7 +177,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     });
   }
 
-  const days = parsed.data.days;
+  const { days, pipeline_id: requestedPipelineId } = parsed.data;
   const now = new Date();
   const fromDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
@@ -195,26 +203,28 @@ export async function GET(req: NextRequest): Promise<Response> {
   // 3. Etapas do funil (busca antecipada para identificar estágios de ganho)
   const { data: pipelines } = await supabase
     .from("crm_pipelines")
-    .select("id, name")
+    .select("id, name, is_default")
     .eq("organization_id", activeOrg.orgId)
     .order("is_default", { ascending: false })
     .order("position", { ascending: true })
     .eq("is_archived", false)
 ;
 
-  const commercialPipelines = (pipelines ?? []).filter((pipeline) =>
-    pipeline.name.toLocaleLowerCase("pt-BR").includes("comercial"),
-  );
-  const salesPipelines = commercialPipelines.length > 0
-    ? commercialPipelines
-    : pipelines?.slice(0, 1) ?? [];
-  const salesPipelineIds = new Set(salesPipelines.map((pipeline) => pipeline.id));
+  const activePipelines = pipelines ?? [];
+  const defaultPipeline = activePipelines.find((pipeline) => pipeline.is_default) ?? activePipelines[0] ?? null;
+  const selectedPipeline = requestedPipelineId
+    ? activePipelines.find((pipeline) => pipeline.id === requestedPipelineId) ?? null
+    : defaultPipeline;
+  if (requestedPipelineId && !selectedPipeline) {
+    return fail("resource_not_found", "Funil n?o encontrado nesta organiza??o.", 404, { requestId });
+  }
+  const selectedPipelineIds = new Set(selectedPipeline ? [selectedPipeline.id] : []);
 
   const { data: stages } = await supabase
     .from("crm_stages")
     .select("id, name, color, is_won, is_lost")
     .eq("organization_id", activeOrg.orgId)
-    .in("pipeline_id", [...salesPipelineIds])
+    .in("pipeline_id", [...selectedPipelineIds])
     .eq("is_archived", false)
     .order("position", { ascending: true });
 
@@ -245,7 +255,8 @@ export async function GET(req: NextRequest): Promise<Response> {
     logger.error("[dashboard/overview] Falha ao consultar leads", { error: leadsError.message });
   }
 
-  const openLeads = leadsAbertosDosFunisComerciais(allLeads ?? [], salesPipelineIds);
+  const leadsDoFunilSelecionado = (allLeads ?? []).filter((lead) => selectedPipelineIds.has(lead.pipeline_id));
+  const openLeads = leadsAbertosDosFunisComerciais(leadsDoFunilSelecionado, selectedPipelineIds);
 
   let totalOpenValueCents = 0;
   let approvedBudgetsCount = 0;
@@ -266,7 +277,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const fontesMap = new Map<string, { count: number; total_value_cents: number; won_count: number }>();
 
   // Calcula métricas financeiras, procedimentos e fontes sobre todos os leads
-  (allLeads ?? []).forEach((lead) => {
+  leadsDoFunilSelecionado.forEach((lead) => {
     const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
     const orcamento = custom.orcamento as OrcamentoLead | undefined;
 
@@ -659,7 +670,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   // 8. Busca contatos para enriquecer os relatórios
-  const contactIds = [...new Set((allLeads ?? []).map((l) => l.contact_id).filter(Boolean))] as string[];
+  const contactIds = [...new Set(leadsDoFunilSelecionado.map((l) => l.contact_id).filter(Boolean))] as string[];
   const allContactNames = new Map<string, string>();
   if (contactIds.length > 0) {
     const { data: contacts } = await supabase
@@ -706,7 +717,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const compareceramList: AgendamentoReportItem[] = [];
   const remarcadosList: AgendamentoReportItem[] = [];
 
-  (allLeads ?? []).forEach((lead) => {
+  leadsDoFunilSelecionado.forEach((lead) => {
     const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
     const orcamento = custom.orcamento as OrcamentoLead | undefined;
 
@@ -831,6 +842,8 @@ export async function GET(req: NextRequest): Promise<Response> {
   });
 
   const payload: DashboardOverviewData = {
+    pipelines: activePipelines.map((pipeline) => ({ id: pipeline.id, name: pipeline.name, is_default: pipeline.is_default })),
+    selected_pipeline_id: selectedPipeline?.id ?? null,
     period_days: days,
     kpis: {
       active_conversations: activeConversationsCount ?? 0,

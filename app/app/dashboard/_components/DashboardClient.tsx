@@ -57,7 +57,8 @@ function formatResponseTime(seconds: number | null): string {
 
 export function DashboardClient({ orgName }: Props) {
   const [days, setDays] = useState<number>(30);
-  const { data, isLoading, isError, refetch, isRefetching } = useDashboardOverview(days);
+  const [pipelineId, setPipelineId] = useState<string | null>(null);
+  const { data, isLoading, isError, refetch, isRefetching } = useDashboardOverview(days, pipelineId);
 
   // Controle do drawer de relatório dos KPIs
   const [reportType, setReportType] = useState<ReportType | null>(null);
@@ -115,6 +116,24 @@ export function DashboardClient({ orgName }: Props) {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {payload?.pipelines.length ? (
+            <Select
+              value={pipelineId ?? payload.selected_pipeline_id ?? undefined}
+              onValueChange={setPipelineId}
+            >
+              <SelectTrigger className="w-[180px] h-9 text-xs" aria-label="Funil dos indicadores comerciais">
+                <SelectValue placeholder="Selecionar funil" />
+              </SelectTrigger>
+              <SelectContent>
+                {payload.pipelines.map((pipeline) => (
+                  <SelectItem key={pipeline.id} value={pipeline.id}>
+                    {pipeline.name}{pipeline.is_default ? " (Padr?o)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+
           <Select
             value={String(days)}
             onValueChange={(val) => setDays(Number(val))}
