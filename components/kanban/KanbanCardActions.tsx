@@ -139,17 +139,7 @@ export function KanbanCardActions({ lead, pipelineId, stages = [] }: KanbanCardA
             <DropdownMenuSubTrigger><FlowArrow size={14} className="mr-2" /> Mover para funil</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>{pipelines.map((pipeline) => <DropdownMenuSub key={pipeline.id}><DropdownMenuSubTrigger onPointerMove={() => loadStages(pipeline.id)}>{pipeline.name}</DropdownMenuSubTrigger><DropdownMenuSubContent>{(targetStages[pipeline.id] ?? []).map((stage) => <DropdownMenuItem key={stage.id} disabled={pipeline.id === pipelineId && stage.id === lead.stage_id || moveMutation.isPending} onSelect={() => moveMutation.mutate({ leadId: lead.id, pipelineId: pipeline.id, stageId: stage.id, positionInStage: 1000000, expectedUpdatedAt: lead.updated_at })}>{stage.name}</DropdownMenuItem>)}</DropdownMenuSubContent></DropdownMenuSub>)}</DropdownMenuSubContent>
           </DropdownMenuSub>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger><FlowArrow size={14} className="mr-2" /> Mover para etapa</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {stages.map((stage) => (
-                <DropdownMenuItem key={stage.id} disabled={stage.id === lead.stage_id || moveMutation.isPending} onSelect={() => moveMutation.mutate({ leadId: lead.id, stageId: stage.id, positionInStage: 1000000, expectedUpdatedAt: lead.updated_at })}>
-                  {stage.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuItem
+<DropdownMenuItem
             disabled={winMutation.isPending}
             onSelect={() => {
               winMutation.mutate({ leadId: lead.id });
