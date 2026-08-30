@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { encontrarGruposDuplicados } from "@/lib/leads/duplicates";
+import { encontrarGruposDuplicados, telefoneDoLead } from "@/lib/leads/duplicates";
 import type { Lead } from "@/lib/types/leads";
 
-function lead(id: string, title: string, phone: string | null = null, contactId = id): Lead {
-  return { id, title, contact_id: contactId, contact_phone_number: phone } as Lead;
+function lead(id: string, title: string, phone: string | null = null, contactId = id, customFields: Record<string, unknown> = {}): Lead {
+  return { id, title, contact_id: contactId, contact_phone_number: phone, custom_fields: customFields } as Lead;
 }
 
 describe("duplicatas do funil", () => {
@@ -13,6 +13,15 @@ describe("duplicatas do funil", () => {
       lead("a", "Orçamento", "+55 (48) 3431-1390", "contato-1"),
       lead("b", "Outro título", "554834311390", "contato-2"),
       lead("c", "Sem repetição", "5548999999999", "contato-3"),
+    ]);
+
+    expect(grupos.map((grupo) => grupo.map((item) => item.id))).toEqual([["a", "b"]]);
+  });
+
+  it("encontra o telefone salvo no custom_fields de leads importados", () => {
+    const grupos = encontrarGruposDuplicados([
+      lead("a", "Fabiano", null, "contato-1", { phone: "+55 (41) 98463-7868" }),
+      lead("b", "Fabiano", null, "contato-2", { phone: " +5541984637868 " }),
     ]);
 
     expect(grupos.map((grupo) => grupo.map((item) => item.id))).toEqual([["a", "b"]]);
@@ -35,5 +44,11 @@ describe("duplicatas do funil", () => {
       lead("c", "Mesmo nome", "5548999993333", "contato-3"),
       lead("d", "Mesmo nome", "5548999994444", "contato-4"),
     ])).toEqual([]);
+  });
+
+  it("prioriza o telefone do contato sobre o valor legado do card", () => {
+    expect(telefoneDoLead(lead("a", "Lead", "+55 41 99999-1111", "contato-1", {
+      phone: "+55 41 00000-0000",
+    }))).toBe("5541999991111");
   });
 });

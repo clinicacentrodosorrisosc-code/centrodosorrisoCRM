@@ -9,7 +9,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api/client";
-import { encontrarGruposDuplicados } from "@/lib/leads/duplicates";
+import { encontrarGruposDuplicados, telefoneDoLead } from "@/lib/leads/duplicates";
 import type { Lead } from "@/lib/types/leads";
 
 type Campo = {
@@ -21,8 +21,8 @@ type Campo = {
 const CAMPOS: Campo[] = [
   { key: "title", label: "Nome do card" },
   { key: "description", label: "Descrição" },
-  { key: "contact", label: "Contato" },
-  { key: "value", label: "Valor" },
+  { key: "contact", label: "Telefone" },
+  { key: "value", label: "Orçamento" },
   { key: "owner", label: "Responsável" },
   { key: "expected_close_date", label: "Previsão de fechamento" },
   { key: "tags", label: "Etiquetas" },
@@ -33,7 +33,7 @@ const CAMPOS: Campo[] = [
 function resumo(campo: Campo["key"], lead: Lead): string {
   if (campo === "title") return lead.title;
   if (campo === "description") return lead.description || "Sem descrição";
-  if (campo === "contact") return lead.contact_phone_number || "Sem telefone";
+  if (campo === "contact") return telefoneDoLead(lead) || "Sem telefone";
   if (campo === "value") return lead.value_cents == null ? "Sem valor" :
     (lead.value_cents / 100).toLocaleString("pt-BR", { style: "currency", currency: lead.currency ?? "BRL" });
   if (campo === "owner") return lead.owner_agent?.name ?? lead.owner_user_id?.slice(0, 8) ?? "Sem responsável";
@@ -41,7 +41,7 @@ function resumo(campo: Campo["key"], lead: Lead): string {
   if (campo === "tags") return lead.tags.length ? lead.tags.join(", ") : "Sem etiquetas";
   if (campo === "source") return lead.source || "Sem origem";
   return Object.keys(lead.custom_fields ?? {}).length
-    ? `${Object.keys(lead.custom_fields).length} campo(s)` : "Sem campos personalizados";
+    ? Object.keys(lead.custom_fields).length + " campo(s)" : "Sem campos personalizados";
 }
 
 export function DuplicateLeadsDialog({
@@ -65,9 +65,13 @@ export function DuplicateLeadsDialog({
     ? principalId
     : (grupo[0]?.id ?? "");
   const confirmado = confirmadoPara === grupoKey;
+  const principal = grupo.find((lead) => lead.id === principalEfetivo) ?? grupo[0]!;
 
   function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen) setConfirmadoPara("");
+    setGrupoIndex(0);
+    setPrincipalId("");
+    setFontes({});
+    setConfirmadoPara("");
     onOpenChange(nextOpen);
   }
 
@@ -77,10 +81,28 @@ export function DuplicateLeadsDialog({
     setConfirmadoPara("");
   }
 
+  function escolherFonte(campo: Campo["key"], leadId: string) {
+    setFontes((atual) => ({ ...atual, [campo]: leadId }));
+    setConfirmadoPara("");
+  }
+
+  function selecionarTodosDoCard(leadId: string) {
+    setFontes(Object.fromEntries(CAMPOS.map((campo) => [campo.key, leadId])));
+    setConfirmadoPara("");
+  }
+
+  function pularDuplicata() {
+    if (grupoIndex + 1 < grupos.length) {
+      setGrupoIndex((atual) => atual + 1);
+      return;
+    }
+    handleOpenChange(false);
+  }
+
   async function mesclar() {
-    const principal = grupo.find((lead) => lead.id === principalEfetivo);
     if (!principal || grupo.length < 2) return;
-    const origem = (key: Campo["key"]) => grupo.find((lead) => lead.id === fontes[key]) ?? principal;
+    const origem = (key: Campo["key"]) =>
+      grupo.find((lead) => lead.id === fontes[key]) ?? principal;
     const titulo = origem("title");
     const descricao = origem("description");
     const contato = origem("contact");
@@ -111,7 +133,7 @@ export function DuplicateLeadsDialog({
           custom_fields: personalizados.custom_fields,
         },
       });
-      toast.success(`${grupo.length} cards foram mesclados em um único lead.`);
+      toast.success(grupo.length + " cards foram mesclados em um único lead.");
       await qc.invalidateQueries({ queryKey: ["board", pipelineId] });
       handleOpenChange(false);
     } catch (error) {
@@ -123,57 +145,93 @@ export function DuplicateLeadsDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Encontrar e mesclar duplicatas</DialogTitle>
-          <DialogDescription>
-            Cards com o mesmo telefone são agrupados como duplicatas. Escolha o card principal e a origem de cada dado; os demais serão excluídos permanentemente após a transferência do histórico.
-          </DialogDescription>
+      <DialogContent className="flex max-h-[92vh] flex-col sm:max-w-6xl">
+        <DialogHeader className="border-b pb-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <DialogTitle>Localizar e unir duplicatas</DialogTitle>
+              <DialogDescription className="mt-1">
+                Selecione a origem de cada dado. O card principal permanece e os demais serão excluídos após a transferência do histórico.
+              </DialogDescription>
+            </div>
+            {grupos.length > 0 && (
+              <p className="shrink-0 text-sm font-medium text-muted-foreground">
+                {grupoIndex + 1} de {grupos.length}
+              </p>
+            )}
+          </div>
         </DialogHeader>
 
         {grupos.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma duplicata encontrada neste funil pelo telefone.</p>
+          <div className="py-10 text-center">
+            <p className="text-sm font-medium">Nenhuma duplicata encontrada neste funil.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              A análise considera o telefone do contato e telefones preservados nos cards importados.
+            </p>
+          </div>
         ) : (
-          <div className="grid min-h-0 flex-1 gap-4 overflow-hidden md:grid-cols-[220px_1fr]">
-            <div className="space-y-2 overflow-y-auto border-r pr-3">
-              {grupos.map((item, index) => (
-                <button key={item[0]!.id} type="button" onClick={() => setGrupoIndex(index)}
-                  className={`w-full rounded-md border p-3 text-left text-sm ${index === grupoIndex ? "border-primary bg-primary/5" : "hover:bg-muted"}`}>
-                  <span className="block font-medium">{item[0]!.title}</span>
-                  <span className="text-xs text-muted-foreground">{item.length} cards</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="space-y-4 overflow-y-auto pr-1">
-              <div>
-                <p className="mb-2 text-sm font-medium">Card principal</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {grupo.map((lead) => (
-                    <label key={lead.id} className="flex cursor-pointer gap-2 rounded-md border p-3 text-sm">
-                      <input type="radio" name="principal" checked={principalEfetivo === lead.id}
-                        onChange={() => escolherPrincipal(lead.id)} />
-                      <span><strong>{lead.title}</strong><small className="block text-muted-foreground">Criado em {new Date(lead.created_at).toLocaleDateString("pt-BR")}</small></span>
-                    </label>
-                  ))}
-                </div>
+          <div className="min-h-0 flex-1 overflow-auto rounded-md border">
+            <div
+              className="grid min-w-[880px]"
+              style={{ gridTemplateColumns: "minmax(140px, .8fr) repeat(" + grupo.length + ", minmax(190px, 1fr)) minmax(220px, 1.15fr)" }}
+            >
+              <div className="border-b bg-muted/30 p-3 text-xs font-semibold text-muted-foreground">
+                Comparar campos
               </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Dados que serão mantidos</p>
-                {CAMPOS.map((campo) => (
-                  <label key={campo.key} className="grid items-center gap-2 rounded-md border p-3 text-sm sm:grid-cols-[180px_1fr]">
-                    <span className="font-medium">{campo.label}</span>
-                    <select className="h-9 rounded-md border bg-background px-2"
-                      value={grupo.some((lead) => lead.id === fontes[campo.key])
-                        ? fontes[campo.key]
-                        : principalEfetivo}
-                      onChange={(event) => setFontes((atual) => ({ ...atual, [campo.key]: event.target.value }))}>
-                      {grupo.map((lead) => <option key={lead.id} value={lead.id}>{resumo(campo.key, lead)}</option>)}
-                    </select>
+              {grupo.map((lead) => (
+                <div key={lead.id} className="border-b border-l bg-muted/30 p-3">
+                  <label className="flex cursor-pointer items-start gap-2 text-sm font-semibold">
+                    <input
+                      type="radio"
+                      name={"principal-" + grupoKey}
+                      checked={principalEfetivo === lead.id}
+                      onChange={() => escolherPrincipal(lead.id)}
+                      className="mt-0.5 accent-primary"
+                    />
+                    <span className="min-w-0 break-words">{lead.title || "Sem nome"}</span>
                   </label>
-                ))}
+                  <p className="mt-2 break-all text-xs text-muted-foreground">
+                    {telefoneDoLead(lead) || "Sem telefone"}
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-3 text-xs font-medium text-primary hover:underline"
+                    onClick={() => selecionarTodosDoCard(lead.id)}
+                  >
+                    Manter tudo deste card
+                  </button>
+                </div>
+              ))}
+              <div className="border-b border-l bg-primary/5 p-3 text-xs font-semibold text-primary">
+                Resultado final
               </div>
+
+              {CAMPOS.flatMap((campo) => {
+                const fonte = grupo.find((lead) => lead.id === fontes[campo.key]) ?? principal;
+                return [
+                  <div key={campo.key + "-label"} className="border-b bg-muted/20 p-3 text-xs font-semibold">
+                    {campo.label}
+                  </div>,
+                  ...grupo.map((lead) => (
+                    <label key={campo.key + "-" + lead.id} className="flex min-w-0 cursor-pointer items-start gap-2 border-b border-l p-3 text-sm hover:bg-muted/40">
+                      <input
+                        type="radio"
+                        name={"campo-" + campo.key + "-" + grupoKey}
+                        checked={fonte?.id === lead.id}
+                        onChange={() => escolherFonte(campo.key, lead.id)}
+                        className="mt-0.5 shrink-0 accent-primary"
+                      />
+                      <span className="min-w-0 break-words">{resumo(campo.key, lead)}</span>
+                    </label>
+                  )),
+                  <div key={campo.key + "-result"} className="min-w-0 border-b border-l bg-primary/5 p-3 text-sm">
+                    <p className="break-words font-medium">{resumo(campo.key, fonte ?? principal)}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Mantido deste card
+                    </p>
+                  </div>,
+                ];
+              })}
             </div>
           </div>
         )}
@@ -187,18 +245,28 @@ export function DuplicateLeadsDialog({
               onChange={(event) => setConfirmadoPara(event.target.checked ? grupoKey : "")}
             />
             <span>
-              Confirmo que os {grupo.length - 1} cards secundários podem ser excluídos
-              permanentemente depois que seus dados e históricos forem transferidos.
+              Confirmo que os {grupo.length - 1} cards secundários podem ser excluídos permanentemente depois que seus dados e históricos forem transferidos.
             </span>
           </label>
         )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={salvando}>Cancelar</Button>
-          <Button variant="destructive" onClick={() => void mesclar()}
-            disabled={salvando || grupo.length < 2 || !principalEfetivo || !confirmado}>
-            {salvando ? "Mesclando…" : `Mesclar e excluir ${Math.max(0, grupo.length - 1)} secundário(s)`}
+        <DialogFooter className="flex-wrap justify-between gap-2 sm:justify-between">
+          <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={salvando}>
+            Cancelar
           </Button>
+          <div className="flex flex-wrap gap-2">
+            {grupos.length > 0 && (
+              <Button variant="outline" onClick={pularDuplicata} disabled={salvando}>
+                Pular esta duplicata
+              </Button>
+            )}
+            <Button
+              onClick={() => void mesclar()}
+              disabled={salvando || grupo.length < 2 || !principalEfetivo || !confirmado}
+            >
+              {salvando ? "Unindo..." : "Unir esta duplicata"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
