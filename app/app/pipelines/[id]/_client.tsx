@@ -25,7 +25,9 @@ import { FilterBar } from "@/components/kanban/FilterBar";
 import { BulkActionBar } from "@/components/kanban/BulkActionBar";
 import { NewLeadDialog } from "@/components/kanban/NewLeadDialog";
 import { Button } from "@/components/ui/button";
-import { Bell, Plus, Kanban, Funnel, Gear } from "@/lib/ui/icons";
+import { Bell, Plus, Kanban, Funnel, Gear, DotsThree, Copy } from "@/lib/ui/icons";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ReminderConfigDialog } from "@/components/kanban/ReminderConfigDialog";
 import { CardLayoutDialog } from "@/components/kanban/CardLayoutDialog";
 import type { LeadFilters } from "@/lib/kanban/filters";
@@ -57,6 +59,7 @@ export function PipelinePageClient({
   const [reminderOpen, setReminderOpen] = useState(false);
   const [cardLayoutOpen, setCardLayoutOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "funnel">("kanban");
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
 
   const filteredLeads = data ? applyFilters(data.leads, filters) : [];
 
@@ -101,30 +104,24 @@ export function PipelinePageClient({
         </div>
 
         <div className="flex items-center gap-2">
-          {podeConfigurarCard && (
-            <Button
-              variant="outline"
-              onClick={() => setCardLayoutOpen(true)}
-              disabled={!data}
-              aria-label="Editar layout dos cards"
-            >
-              <Gear size={16} className="mr-2" /> Layout do card
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => setReminderOpen(true)}
-            disabled={!data}
-            aria-label="Configurar lembrete de agendamento"
-          >
-            <Bell size={16} className="mr-2" /> Lembrete de Consulta
-          </Button>
-          <Button onClick={() => setNewOpen(true)} disabled={!data}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Mais opções do funil" disabled={!data}>
+                <DotsThree size={18} weight="bold" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {podeConfigurarCard && <DropdownMenuItem onSelect={() => setCardLayoutOpen(true)}><Gear size={16} /> Layout do card</DropdownMenuItem>}
+              <DropdownMenuItem onSelect={() => setReminderOpen(true)}><Bell size={16} /> Lembrete de Consulta</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setDuplicatesOpen(true)}><Copy size={16} /> Encontrar duplicatas</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>          <Button onClick={() => setNewOpen(true)} disabled={!data}>
             <Plus size={16} className="mr-2" /> Novo Lead
           </Button>
         </div>
       </header>
 
+      <Dialog open={duplicatesOpen} onOpenChange={setDuplicatesOpen}><DialogContent><DialogHeader><DialogTitle>Duplicatas neste funil</DialogTitle><DialogDescription>Leads com o mesmo telefone ou título.</DialogDescription></DialogHeader><div className="space-y-2">{(() => { const groups = new Map<string, Array<{ id: string; title: string }>>(); for (const lead of data?.leads ?? []) { const key = lead.title.trim().toLowerCase(); groups.set(key, [...(groups.get(key) ?? []), lead]); } const duplicates = [...groups.values()].filter((g) => g.length > 1); return duplicates.length ? duplicates.map((g) => <div key={g[0]!.id} className="rounded border p-2 text-sm">{g.map((lead) => lead.title).join(" · ")}</div>) : <p className="text-sm text-muted-foreground">Nenhuma duplicata encontrada.</p>; })()}</div></DialogContent></Dialog>
       {data && (
         <NewLeadDialog
           open={newOpen}

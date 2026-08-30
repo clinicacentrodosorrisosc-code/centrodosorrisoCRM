@@ -19,6 +19,7 @@ interface KanbanCardProps {
   lead: Lead;
   index: number;
   pipelineId: string;
+  stages?: Array<{ id: string; name: string }>;
   layout: CardLayout;
   isSelected?: boolean;
   /**
@@ -126,6 +127,7 @@ export function KanbanCard({
   lead,
   index,
   pipelineId,
+  stages,
   layout,
   isSelected,
   pulseCount = 0,
@@ -321,7 +323,7 @@ export function KanbanCard({
               >
                 {card.title}
               </button>
-              <KanbanCardActions lead={lead} pipelineId={pipelineId} />
+              <KanbanCardActions lead={lead} pipelineId={pipelineId} stages={stages} />
             </div>
 
             {layout.slots.length > 0 && (

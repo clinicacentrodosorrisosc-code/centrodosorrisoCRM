@@ -10,6 +10,7 @@ import { KanbanCard } from "./KanbanCard";
 
 interface StageColumnProps {
   stage: Stage;
+  stages?: Stage[];
   leads: Lead[];
   pipelineId: string;
   /** owner_user_id → nome, resolvido no board. O dono agente vem no lead. */
@@ -43,6 +44,7 @@ function formatBRL(cents: number): string {
 
 export function StageColumn({
   stage,
+  stages,
   leads,
   pipelineId,
   ownerNames,
@@ -115,6 +117,7 @@ export function StageColumn({
                 isSelected={selectedLeadIds?.has(lead.id)}
                 pulseCount={pulses?.get(lead.id) ?? 0}
                 onSelect={onSelect}
+                stages={stages}
                 onOpen={onOpen}
               />
             ))}
