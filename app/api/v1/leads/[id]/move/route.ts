@@ -74,7 +74,8 @@ export async function POST(
   if (!stage) {
     return fail("not_found", "Stage não encontrado.", 404, { requestId });
   }
-  if (stage.pipeline_id !== lead.pipeline_id) {
+  const targetPipelineId = input.pipeline_id ?? stage.pipeline_id;
+  if (stage.pipeline_id !== targetPipelineId) {
     return fail(
       "pipeline_immutable_use_clone",
       "Move cross-pipeline não é permitido. Clone o lead para o pipeline alvo.",
@@ -100,6 +101,7 @@ export async function POST(
   let { data: updated, error: updErr } = await supabase
     .from("crm_leads")
     .update({
+      pipeline_id: targetPipelineId,
       stage_id: input.stage_id,
       position_in_stage: input.position_in_stage,
       custom_fields: nextCustomFields,
@@ -115,7 +117,8 @@ export async function POST(
     const { data: retryUpdated, error: retryErr } = await supabase
       .from("crm_leads")
       .update({
-        stage_id: input.stage_id,
+        pipeline_id: targetPipelineId,
+      stage_id: input.stage_id,
         position_in_stage: input.position_in_stage,
         custom_fields: nextCustomFields,
         updated_at: new Date().toISOString(),
@@ -183,7 +186,7 @@ export async function POST(
     payload: {
       from_stage_id: lead.stage_id,
       to_stage_id: input.stage_id,
-      pipeline_id: lead.pipeline_id,
+      pipeline_id: targetPipelineId,
     },
   });
   if (!atividade.ok) {

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,9 +34,13 @@ export function KanbanCardActions({ lead, pipelineId, stages = [] }: KanbanCardA
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [pipelines, setPipelines] = useState<Array<{ id: string; name: string }>>([]);
+  const [targetStages, setTargetStages] = useState<Record<string, Array<{ id: string; name: string }>>>({});
   const winMutation = useWinLead(pipelineId);
   const editMutation = useEditLead(pipelineId);
   const moveMutation = useMoveCard(pipelineId);
+  useEffect(() => { fetch("/api/v1/pipelines").then((r) => r.json()).then((r) => setPipelines(r.data?.pipelines ?? r.data ?? [])).catch(() => setPipelines([])); }, []);
+  const loadStages = (id: string) => { if (targetStages[id]) return; fetch(`/api/v1/pipelines/${id}/board`).then((r) => r.json()).then((r) => setTargetStages((v) => ({ ...v, [id]: r.data?.stages ?? [] }))).catch(() => undefined); };
   // spec 13 §4: escrita no funil é agent+ — viewer não reatribui (a rota
   // PATCH também recusa; aqui é só não oferecer o que seria negado).
   const canAssign = usePermission("pipeline.move_card");
@@ -131,6 +135,10 @@ export function KanbanCardActions({ lead, pipelineId, stages = [] }: KanbanCardA
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           )}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger><FlowArrow size={14} className="mr-2" /> Mover para funil</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>{pipelines.map((pipeline) => <DropdownMenuSub key={pipeline.id}><DropdownMenuSubTrigger onPointerMove={() => loadStages(pipeline.id)}>{pipeline.name}</DropdownMenuSubTrigger><DropdownMenuSubContent>{(targetStages[pipeline.id] ?? []).map((stage) => <DropdownMenuItem key={stage.id} disabled={pipeline.id === pipelineId && stage.id === lead.stage_id || moveMutation.isPending} onSelect={() => moveMutation.mutate({ leadId: lead.id, pipelineId: pipeline.id, stageId: stage.id, positionInStage: 1000000, expectedUpdatedAt: lead.updated_at })}>{stage.name}</DropdownMenuItem>)}</DropdownMenuSubContent></DropdownMenuSub>)}</DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger><FlowArrow size={14} className="mr-2" /> Mover para etapa</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>

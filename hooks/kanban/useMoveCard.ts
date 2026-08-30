@@ -10,6 +10,7 @@ import type { BoardData } from "@/lib/kanban/types";
 interface MoveArgs {
   leadId: string;
   stageId: string;
+  pipelineId?: string;
   positionInStage: number;
   expectedUpdatedAt: string;
 }
@@ -23,6 +24,7 @@ export function useMoveCard(pipelineId: string) {
       // Minha própria ação não pulsa: o card já se moveu sob o cursor.
       marcarEcoLocal(args.leadId);
       return apiClient.post<{ data: Lead }>(`/api/v1/leads/${args.leadId}/move`, {
+        pipeline_id: args.pipelineId,
         stage_id: args.stageId,
         position_in_stage: args.positionInStage,
         expected_updated_at: args.expectedUpdatedAt,

@@ -20,6 +20,7 @@ const flexibleTimestamp = z
   .refine((s) => !Number.isNaN(Date.parse(s)), "expected_updated_at deve ser um timestamp válido");
 
 export const moveLeadSchema = z.object({
+  pipeline_id: z.string().uuid().optional(),
   stage_id: z.string().uuid(),
   position_in_stage: z.number().finite(),
   expected_updated_at: flexibleTimestamp,
