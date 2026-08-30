@@ -23,6 +23,8 @@ import { requireRole } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { OrcamentoLead } from "@/lib/types/orcamento";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
+import { logger } from "@/lib/logger";
+import { dentroDoPeriodo, leadsAbertosDoFunilNoPeriodo, pagamentosRecebidosNoPeriodo, valorRecebidoNoPeriodo } from "@/lib/dashboard/period-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +61,8 @@ export interface OrcamentoReportItem {
 }
 
 export interface AgendamentoReportItem {
-  lead_id: string;
+  id: string;
+  lead_id: string | null;
   lead_title: string;
   contact_name: string | null;
   stage_name: string;
@@ -173,12 +176,14 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   const supabase = createAdminClient();
 
-  // 1. Conversas ativas (status = open)
+  // Conversas com janela de 24h aberta e atendimento nao encerrado.
+  const conversationWindowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const { count: activeConversationsCount } = await supabase
     .from("conversations")
     .select("id", { count: "exact", head: true })
     .eq("organization_id", activeOrg.orgId)
-    .eq("status", "open");
+    .not("status", "in", "(closed,archived)")
+    .gte("last_inbound_at", conversationWindowStart.toISOString());
 
   // 2. Novos contatos criados no período
   const { count: newContactsCount } = await supabase
@@ -188,9 +193,21 @@ export async function GET(req: NextRequest): Promise<Response> {
     .gte("created_at", fromDate.toISOString());
 
   // 3. Etapas do funil (busca antecipada para identificar estágios de ganho)
+  const { data: defaultPipeline } = await supabase
+    .from("crm_pipelines")
+    .select("id")
+    .eq("organization_id", activeOrg.orgId)
+    .eq("is_default", true)
+    .eq("is_archived", false)
+    .maybeSingle();
+
   const { data: stages } = await supabase
     .from("crm_stages")
-    .select("id, name, color, is_won, is_lost");
+    .select("id, name, color, is_won, is_lost")
+    .eq("organization_id", activeOrg.orgId)
+    .eq("pipeline_id", defaultPipeline?.id ?? "00000000-0000-0000-0000-000000000000")
+    .eq("is_archived", false)
+    .order("position", { ascending: true });
 
   const stageMap = new Map<string, { name: string; color: string | null; count: number; value_cents: number }>();
   const wonStageIds = new Set<string>();
@@ -216,13 +233,11 @@ export async function GET(req: NextRequest): Promise<Response> {
     .order("created_at", { ascending: false });
 
   if (leadsError) {
-    console.error("[dashboard/overview] crm_leads error:", leadsError);
+    logger.error("[dashboard/overview] Falha ao consultar leads", { error: leadsError.message });
   }
 
-  // Leads em aberto no funil: status open E sem closed_at
-  const openLeads = (allLeads ?? []).filter(
-    (l) => l.status === "open" && !l.closed_at && (!l.stage_id || !wonStageIds.has(l.stage_id)),
-  );
+  const defaultStageIds = new Set(stageMap.keys());
+  const openLeads = leadsAbertosDoFunilNoPeriodo(allLeads ?? [], defaultStageIds, fromDate, now);
 
   let totalOpenValueCents = 0;
   let approvedBudgetsCount = 0;
@@ -267,9 +282,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       approvedBudgetsCount += 1;
       approvedBudgetsValueCents += leadValue;
 
-      // 2. Valores Recebidos: soma exclusivamente as baixas pagas registradas
       const pago = orcamento?.total_pago_cents ?? 0;
-      totalReceivedValueCents += pago;
 
       // 3. Saldo a Receber: o que resta a pagar dos aprovados
       const saldoPendente = Math.max(0, leadValue - pago);
@@ -299,10 +312,9 @@ export async function GET(req: NextRequest): Promise<Response> {
         cur.total_received_cents += cp.paid;
         procFechadosMap.set(cp.name, cur);
       }
-    } else if (lead.status === "open" && !lead.closed_at) {
-      // 4. Pipeline em Negociação (em aberto no funil, ainda não aprovado nem perdido)
-      totalOpenValueCents += leadValue;
     }
+
+    totalReceivedValueCents += valorRecebidoNoPeriodo(orcamento, fromDate, now);
 
     // Procedimentos Procurados (Demanda Geral de Leads)
     const procsInLead: string[] = [];
@@ -473,6 +485,20 @@ export async function GET(req: NextRequest): Promise<Response> {
     .sort((a, b) => b.count - a.count || b.total_value_cents - a.total_value_cents);
 
   const openDealsCount = openLeads.length;
+  totalOpenValueCents = openLeads.reduce((total, lead) => {
+    const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
+    const orcamento = custom.orcamento as OrcamentoLead | undefined;
+    const valor = orcamento?.total_cents ?? lead.value_cents ?? 0;
+    return total + (typeof valor === "number" ? valor : 0);
+  }, 0);
+
+  const { data: calendarEvents } = await supabase
+    .from("calendar_events")
+    .select("id, title, starts_at, status, lead_id, created_at")
+    .eq("organization_id", activeOrg.orgId)
+    .gte("created_at", fromDate.toISOString())
+    .lte("created_at", now.toISOString())
+    .order("created_at", { ascending: false });
 
   // 4. Mensagens enviadas hoje
   const { count: messagesSentTodayCount } = await supabase
@@ -707,14 +733,17 @@ export async function GET(req: NextRequest): Promise<Response> {
           };
 
       approvedBudgetsList.push(item);
-      if (item.total_pago_cents > 0) {
-        receivedPaymentsList.push(item);
-      }
       if (item.saldo_restante_cents > 0) {
         pendingBalanceList.push(item);
       }
-    } else if (orcamento && (orcamento.total_pago_cents ?? 0) > 0) {
-      receivedPaymentsList.push(toReportItem(lead, orcamento));
+    }
+
+    const pagamentosDoPeriodo = pagamentosRecebidosNoPeriodo(orcamento, fromDate, now);
+    if (orcamento && pagamentosDoPeriodo.length > 0) {
+      const item = toReportItem(lead, orcamento);
+      item.pagamentos = pagamentosDoPeriodo.map((p) => ({ id: p.id, data: p.data, metodo: p.metodo, valor_cents: p.valor_cents, observacao: p.observacao }));
+      item.total_pago_cents = pagamentosDoPeriodo.reduce((total, p) => total + p.valor_cents, 0);
+      receivedPaymentsList.push(item);
     }
 
     // Processamento de Agendamentos & Presença
@@ -725,9 +754,10 @@ export async function GET(req: NextRequest): Promise<Response> {
     const contactName = lead.contact_id ? allContactNames.get(lead.contact_id) ?? null : null;
     const stageName = lead.stage_id && stageMap.has(lead.stage_id) ? stageMap.get(lead.stage_id)!.name : "Etapa inicial";
 
-    if (agendData) {
+    if (agendData && dentroDoPeriodo(lead.created_at, fromDate, now)) {
       agendamentosTotalCount += 1;
       const agendItem: AgendamentoReportItem = {
+        id: lead.id,
         lead_id: lead.id,
         lead_title: lead.title,
         contact_name: contactName,
@@ -756,6 +786,13 @@ export async function GET(req: NextRequest): Promise<Response> {
       }
     }
   });
+
+  const agendamentosCriados: AgendamentoReportItem[] = (calendarEvents ?? []).map((event) => {
+    const startsAt = new Date(event.starts_at);
+    const status: AgendamentoReportItem["agendamento_status"] = event.status === "completed" ? "compareceu" : event.status === "no_show" ? "faltou" : event.status === "cancelled" ? "cancelado" : "agendado";
+    return { id: event.id, lead_id: event.lead_id, lead_title: event.title, contact_name: null, stage_name: "Agenda", procedimento: event.title, agendamento_data: startsAt.toISOString().slice(0, 10), agendamento_hora: startsAt.toISOString().slice(11, 16), agendamento_status: status, valor_cents: null, created_at: event.created_at };
+  });
+  agendamentosTotalCount = agendamentosCriados.length;
 
   const agendamentosCompareceuTaxa =
     agendamentosTotalCount > 0
@@ -816,7 +853,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     approved_budgets_list: approvedBudgetsList,
     received_payments_list: receivedPaymentsList,
     pending_balance_list: pendingBalanceList,
-    agendamentos_list: agendamentosList,
+    agendamentos_list: agendamentosCriados,
     faltas_list: faltasList,
     compareceram_list: compareceramList,
     remarcados_list: remarcadosList,

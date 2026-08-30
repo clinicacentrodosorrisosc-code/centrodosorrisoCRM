@@ -62,9 +62,7 @@ export function DashboardClient({ orgName }: Props) {
   // Controle do drawer de relatório dos KPIs
   const [reportType, setReportType] = useState<ReportType | null>(null);
 
-  const raw = data as any;
-  const payload: DashboardOverviewData | undefined =
-    raw?.data?.kpis ? raw.data : raw?.kpis ? raw : raw?.data;
+  const payload: DashboardOverviewData | undefined = data?.data;
 
   function openReport(type: ReportType) {
     setReportType(type);
@@ -182,7 +180,7 @@ export function DashboardClient({ orgName }: Props) {
               <KpiCard
                 title="Total Agendados"
                 value={`${payload.kpis.agendamentos_total_count} ${payload.kpis.agendamentos_total_count === 1 ? "consulta" : "consultas"}`}
-                subtitle="Todas avaliações agendadas · Clique para detalhes"
+                subtitle={`Criados nos últimos ${days} dias · Clique para detalhes`}
                 icon={<Calendar className="h-5 w-5 text-sky-500" />}
                 clickable
                 onClick={() => openReport("agendamentos")}
@@ -233,7 +231,7 @@ export function DashboardClient({ orgName }: Props) {
               <KpiCard
                 title="Pipeline em Negociação"
                 value={formatCentsBRL(payload.kpis.open_deals_value_cents)}
-                subtitle={`Oportunidades ativas (${payload.kpis.open_deals_count} ${payload.kpis.open_deals_count === 1 ? "lead" : "leads"})`}
+                subtitle={`Funil padrão · ${payload.kpis.open_deals_count} ${payload.kpis.open_deals_count === 1 ? "card" : "cards"} no período`}
                 icon={<DollarSign className="h-5 w-5 text-primary" />}
                 highlight={true}
               />
@@ -252,7 +250,7 @@ export function DashboardClient({ orgName }: Props) {
               <KpiCard
                 title="Valores Recebidos"
                 value={formatCentsBRL(payload.kpis.total_received_value_cents)}
-                subtitle="Total de baixas pagas · Clique para detalhes"
+                subtitle={`Recebido nos últimos ${days} dias · Clique para detalhes`}
                 icon={<Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
                 clickable
                 onClick={() => openReport("received")}
@@ -335,7 +333,7 @@ export function DashboardClient({ orgName }: Props) {
               <KpiCard
                 title="Conversas Ativas"
                 value={payload.kpis.active_conversations}
-                subtitle="Atendimentos em andamento"
+                subtitle="Na janela de 24h e ainda não encerradas"
                 icon={<MessageSquare className="h-5 w-5 text-sky-500" />}
               />
 

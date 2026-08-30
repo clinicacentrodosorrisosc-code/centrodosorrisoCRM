@@ -7,8 +7,8 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+
+
 import { Button } from "@/components/ui/button";
 import { formatCentsBRL } from "@/lib/money";
 import {
@@ -16,7 +16,7 @@ import {
   Wallet,
   Clock,
   User,
-  CreditCard,
+
   Calendar,
   XCircle,
   RotateCw,
@@ -27,16 +27,6 @@ import type {
   AgendamentoReportItem,
 } from "@/app/api/v1/dashboard/overview/route";
 
-const METODO_LABEL: Record<string, string> = {
-  pix: "Pix",
-  cartao_credito: "Cartão de Crédito",
-  cartao_debito: "Cartão de Débito",
-  dinheiro: "Dinheiro",
-  boleto: "Boleto",
-  transferencia: "Transferência",
-  cheque: "Cheque",
-};
-
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   rascunho: { label: "Rascunho", className: "bg-muted text-muted-foreground" },
   enviado: { label: "Enviado", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
@@ -44,17 +34,6 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   quitado: { label: "100% Quitado", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
   recusado: { label: "Recusado", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
 };
-
-function formatDate(s: string | null): string {
-  if (!s) return "—";
-  return new Date(s).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function formatYMD(ymd: string): string {
   if (!ymd) return "—";
@@ -255,14 +234,14 @@ function AgendamentoCard({ item }: { item: AgendamentoReportItem }) {
           )}
         </div>
 
-        <Button
+        {item.lead_id && <Button
           size="sm"
           variant="outline"
           className="h-7 px-2.5 text-xs gap-1"
           onClick={() => window.open(`/app/kanban?leadId=${item.lead_id}`, "_blank")}
         >
           <ExternalLink size={12} /> Abrir Lead
-        </Button>
+        </Button>}
       </div>
     </div>
   );
@@ -310,7 +289,7 @@ export function KpiReportDrawer({
               </div>
             ) : (
               agendamentoItems.map((item) => (
-                <AgendamentoCard key={item.lead_id} item={item} />
+                <AgendamentoCard key={item.id} item={item} />
               ))
             )
           ) : (
