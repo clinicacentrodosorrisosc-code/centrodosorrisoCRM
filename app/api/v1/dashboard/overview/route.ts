@@ -24,7 +24,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { OrcamentoLead } from "@/lib/types/orcamento";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { logger } from "@/lib/logger";
-import { dentroDoPeriodo, leadsAbertosDoFunilPadrao, pagamentosRecebidosNoPeriodo, valorRecebidoNoPeriodo } from "@/lib/dashboard/period-metrics";
+import { dentroDoPeriodo, leadsAbertosDoFunilPadrao, pagamentosRecebidosNoPeriodo, valorDoCardKanban, valorRecebidoNoPeriodo } from "@/lib/dashboard/period-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -493,7 +493,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   totalOpenValueCents = openLeads.reduce((total, lead) => {
     const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
     const orcamento = custom.orcamento as OrcamentoLead | undefined;
-    const valor = orcamento?.total_cents ?? lead.value_cents ?? 0;
+    const valor = valorDoCardKanban(lead.value_cents, orcamento);
     return total + (typeof valor === "number" ? valor : 0);
   }, 0);
 

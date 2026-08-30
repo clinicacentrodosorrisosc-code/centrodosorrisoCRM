@@ -29,6 +29,10 @@ export function leadsAbertosDoFunilPadrao<T extends DashboardLeadMetricRow>(
   leads: T[], pipelineId: string | null,
 ): T[] {
   return leads.filter((lead) =>
-    pipelineId !== null && lead.pipeline_id === pipelineId && lead.status === "open" && !lead.closed_at,
+    pipelineId !== null && lead.pipeline_id === pipelineId && lead.status === "open",
   );
+}
+
+export function valorDoCardKanban(valueCents: number | null, orcamento: OrcamentoLead | undefined): number {
+  return valueCents ?? orcamento?.total_cents ?? 0;
 }
