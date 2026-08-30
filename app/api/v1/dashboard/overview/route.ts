@@ -194,6 +194,16 @@ export async function GET(req: NextRequest): Promise<Response> {
       }
     }
   }
+  if (!responsePairs.length) {
+    for (const conversation of conversations) {
+      if (!conversation.last_inbound_at || !conversation.last_outbound_at) continue;
+      const inboundAt = Date.parse(conversation.last_inbound_at);
+      const outboundAt = Date.parse(conversation.last_outbound_at);
+      if (Number.isFinite(inboundAt) && Number.isFinite(outboundAt) && outboundAt > inboundAt && inboundAt >= from.getTime()) {
+        responsePairs.push({ date: dayKey(new Date(inboundAt)), seconds: (outboundAt - inboundAt) / 1000 });
+      }
+    }
+  }
   const responseTimeDaily: ResponseTimePoint[] = Array.from({ length: parsed.data.days }, (_, index) => {
     const date = new Date(from.getTime() + index * 86_400_000);
     const dateKey = dayKey(date);
