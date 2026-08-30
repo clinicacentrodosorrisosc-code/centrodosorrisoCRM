@@ -131,6 +131,16 @@ export function KanbanCardActions({ lead, pipelineId, stages = [] }: KanbanCardA
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           )}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger><FlowArrow size={14} className="mr-2" /> Mover para etapa</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {stages.map((stage) => (
+                <DropdownMenuItem key={stage.id} disabled={stage.id === lead.stage_id || moveMutation.isPending} onSelect={() => moveMutation.mutate({ leadId: lead.id, stageId: stage.id, positionInStage: 1000000, expectedUpdatedAt: lead.updated_at })}>
+                  {stage.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuItem
             disabled={winMutation.isPending}
             onSelect={() => {
