@@ -8,15 +8,15 @@ test("dashboard explica e atualiza os cinco conceitos pelo período", async ({ p
   await expect(page.getByRole("heading", { name: "Painel Geral" })).toBeVisible();
 
   await expect(page.getByText("24 consultas")).toBeVisible();
-  await expect(page.getByText("Funil padrão · 15 cards no período")).toBeVisible();
+  await expect(page.getByText(/Funil Comercial .*15 cards abertos/)).toBeVisible();
   await expect(page.getByText("Na janela de 24h e ainda não encerradas")).toBeVisible();
 
-  await page.getByRole("combobox").click();
+  await page.locator('[role="combobox"]').nth(1).click();
   await page.getByRole("option", { name: "Últimos 7 dias" }).click();
 
   await expect(page.getByText("8 consultas")).toBeVisible();
   await expect(page.getByText("Criados nos últimos 7 dias · Clique para detalhes")).toBeVisible();
-  await expect(page.getByText("Funil padrão · 5 cards no período")).toBeVisible();
+  await expect(page.getByText(/Funil Comercial .*5 cards abertos/)).toBeVisible();
   await expect(page.getByText("Recebido nos últimos 7 dias · Clique para detalhes")).toBeVisible();
   await expect(page.getByText("R$ 3.750,00")).toBeVisible();
 
