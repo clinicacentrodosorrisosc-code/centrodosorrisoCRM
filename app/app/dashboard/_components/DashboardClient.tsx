@@ -79,10 +79,13 @@ function ConversationSummary({ data }: { data: DashboardData["multiatendimento"]
 }
 const formatResponseTime = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds <= 0) return "Sem respostas";
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainder = Math.round(seconds % 60);
-  return remainder ? `${minutes}min ${remainder}s` : `${minutes}min`;
+  const roundedSeconds = Math.round(seconds);
+  if (roundedSeconds < 60) return `${roundedSeconds}s`;
+  const totalMinutes = Math.floor(roundedSeconds / 60);
+  if (totalMinutes < 60) {
+    const remainder = roundedSeconds % 60;
+    return remainder ? `${totalMinutes}min ${remainder}s` : `${totalMinutes}min`;
+  }
 };
 function ResponseTimeChart({ data }: { data: Array<{ date: string; label: string; average_seconds: number; response_count: number }> }) {
   const max = Math.max(1, ...data.map((point) => point.average_seconds));
