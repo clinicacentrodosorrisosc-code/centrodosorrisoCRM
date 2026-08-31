@@ -332,15 +332,6 @@ export const AUDIT_ACTIONS = [
   "pipeline_reminder.config_deleted",
   "pipeline_reminder.sent",
   "lead.attendance_updated",
-  // Calendar vivo: mesma agenda operada pela pessoa, pelo agente e pelo Google.
-  "calendar.event_created",
-  "calendar.event_updated",
-  "calendar.event_cancelled",
-  "calendar.event_type_created",
-  "calendar.google_connected",
-  "calendar.google_disconnected",
-  "calendar.google_synced",
-  "calendar.google_sync_failed",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

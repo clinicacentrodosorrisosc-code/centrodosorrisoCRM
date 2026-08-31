@@ -192,11 +192,6 @@ const schema = z.object({
     .default("false")
     .transform((v) => v === "true"),
 
-  // Google Calendar BYO — credenciais do projeto OAuth do operador.
-  GOOGLE_CALENDAR_CLIENT_ID: z.string().optional().default(""),
-  GOOGLE_CALENDAR_CLIENT_SECRET: z.string().optional().default(""),
-  GOOGLE_CALENDAR_WEBHOOK_SECRET: z.string().optional().default(""),
-
   // App URLs
   NEXT_PUBLIC_APP_URL: z
     .string()

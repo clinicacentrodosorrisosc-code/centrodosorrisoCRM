@@ -50,7 +50,6 @@ CRONS="
 */5 * * * *|25|api/v1/cron/snooze-watcher
 */5 * * * *|25|api/v1/cron/attendant-heartbeat
 */5 * * * *|45|api/v1/cron/channel-health
-*/5 * * * *|50|api/v1/cron/calendar-sync
 */10 * * * *|60|api/v1/cron/contact-avatars
 */15 * * * *|60|api/v1/cron/risk-watcher
 */30 * * * *|60|api/v1/cron/contact-phones

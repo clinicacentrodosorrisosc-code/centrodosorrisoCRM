@@ -17,6 +17,7 @@ import { sendTemplateForSession } from "@/lib/channels/meta/send-template-for-se
 import { sendWAHA } from "@/lib/waha/send";
 import { getAdapter, resolveSessionRef, type ChannelSessionRef, type ChannelProvider } from "@/lib/channels";
 import { logger } from "@/lib/logger";
+import { claimReminderDispatch, releaseReminderDispatch } from "./dispatch-claim";
 import { audit } from "@/lib/audit";
 
 /** Janela de antecipação do cron: 5 min extra para cobrir variação de execução. */
@@ -272,21 +273,6 @@ export async function processAppointmentReminders(
           // Não envia se já passou da hora do próprio agendamento
           if (now.getTime() > agendamento.getTime()) continue;
 
-          // Verifica se já enviou para esta combinação lead+config+data+offset_hours
-          const { data: existing } = await admin
-            .from("pipeline_reminder_sent_log")
-            .select("id")
-            .eq("lead_id", lead.id)
-            .eq("config_id", config.id)
-            .eq("agendamento_data", dataStr)
-            .eq("offset_hours", schedule.offset_hours)
-            .maybeSingle();
-
-          if (existing) {
-            summary.skipped_already_sent++;
-            continue;
-          }
-
           // Busca dados do contato (telefone correto: `phone_number`)
           let contactPhone: string | null = null;
           let contactName: string = lead.title || "Paciente";
@@ -374,6 +360,32 @@ export async function processAppointmentReminders(
             .limit(1)
             .maybeSingle();
 
+          const dispatchKey = {
+            organizationId: config.organization_id,
+            leadId: lead.id,
+            configId: config.id,
+            appointmentDate: dataStr,
+            offsetHours: schedule.offset_hours,
+          };
+
+          let claimed: boolean;
+          try {
+            claimed = await claimReminderDispatch(admin, dispatchKey);
+          } catch (claimErr) {
+            logger.error("[appointment-reminders] Falha ao reservar lembrete", {
+              lead_id: lead.id,
+              offset_hours: schedule.offset_hours,
+              error: String(claimErr),
+            });
+            summary.errors++;
+            continue;
+          }
+
+          if (!claimed) {
+            summary.skipped_already_sent++;
+            continue;
+          }
+
           let sentSuccessfully = false;
           let externalId: string | null = null;
           const messageBody = buildInterpolatedText(metaTemplate?.components, values, schedule.template_name);
@@ -456,15 +468,6 @@ export async function processAppointmentReminders(
           }
 
           if (sentSuccessfully) {
-            // Registra log de envio com offset_hours para evitar duplicatas do mesmo horário
-            await admin.from("pipeline_reminder_sent_log").insert({
-              organization_id: config.organization_id,
-              lead_id: lead.id,
-              config_id: config.id,
-              agendamento_data: dataStr,
-              offset_hours: schedule.offset_hours,
-            });
-
             // Registra mensagem na tabela messages e vincula à conversa do chat
             try {
               if (!contactId && rawPhone) {
@@ -563,6 +566,15 @@ export async function processAppointmentReminders(
               agendamento: `${dataStr} ${horaStr}`,
             });
           } else {
+            try {
+              await releaseReminderDispatch(admin, dispatchKey);
+            } catch (releaseErr) {
+              logger.error("[appointment-reminders] Falha ao liberar reserva de lembrete", {
+                lead_id: lead.id,
+                offset_hours: schedule.offset_hours,
+                error: String(releaseErr),
+              });
+            }
             summary.errors++;
           }
         }

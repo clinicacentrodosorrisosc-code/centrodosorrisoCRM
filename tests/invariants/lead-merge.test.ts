@@ -21,7 +21,6 @@ const LINK = "eeeeeeee-2000-4000-8000-000000000001";
 const ACTIVITY = "eeeeeeee-3000-4000-8000-000000000001";
 const REACTIVATION = "eeeeeeee-4000-4000-8000-000000000001";
 const DEMANDA = "eeeeeeee-5000-4000-8000-000000000001";
-const EVENT = "eeeeeeee-6000-4000-8000-000000000001";
 
 function callAs(userId: string, statement: string): { ok: boolean; output: string } {
   try {
@@ -80,11 +79,6 @@ beforeAll(() => {
 
     insert into public.demandas (id, organization_id, contact_id, lead_id, assunto)
     values ('${DEMANDA}', '${GOV_ORG}', '${GOV_CONTACT_2}', '${SECONDARY}', 'Retorno');
-
-    insert into public.calendar_events
-      (id, organization_id, title, starts_at, ends_at, lead_id, contact_id)
-    values ('${EVENT}', '${GOV_ORG}', 'Consulta', now() + interval '1 day',
-            now() + interval '1 day 1 hour', '${SECONDARY}', '${GOV_CONTACT_2}');
   `);
 });
 
@@ -134,7 +128,6 @@ describe("0165 · mesclagem transacional de leads", () => {
       ["crm_lead_links", LINK],
       ["crm_lead_reactivations", REACTIVATION],
       ["demandas", DEMANDA],
-      ["calendar_events", EVENT],
     ]) {
       expect(sql(`select lead_id from public.${table} where id = '${id}'`)).toBe(PRIMARY);
     }
