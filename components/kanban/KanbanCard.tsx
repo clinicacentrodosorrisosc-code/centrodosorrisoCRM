@@ -2,6 +2,7 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { MouseEvent } from "react";
 import { cn } from "@/lib/utils";
+import { Check } from "@/lib/ui/icons";
 import type { Lead } from "@/lib/types/leads";
 import type { OrcamentoLead } from "@/lib/types/orcamento";
 import { resolveCardState, stageAgeLabel, type CardInput } from "@/lib/kanban/card-state";
@@ -29,6 +30,7 @@ interface KanbanCardProps {
    */
   pulseCount?: number;
   onSelect?: (leadId: string, additive: boolean) => void;
+  selectionMode?: boolean;
   /** Abrir o dossiê. Separado de `onSelect`: são gestos e intenções diferentes. */
   onOpen?: (leadId: string) => void;
 }
@@ -132,6 +134,7 @@ export function KanbanCard({
   isSelected,
   pulseCount = 0,
   onSelect,
+  selectionMode = false,
   onOpen,
 }: KanbanCardProps) {
   const state = resolveCardState(card);
@@ -264,7 +267,7 @@ export function KanbanCard({
     }
   }
   const handleClick = (e: MouseEvent<HTMLDivElement>) => {
-    if (e.metaKey || e.ctrlKey) {
+    if (selectionMode || e.metaKey || e.ctrlKey) {
       onSelect?.(card.id, true);
       return;
     }
@@ -272,7 +275,7 @@ export function KanbanCard({
   };
 
   return (
-    <Draggable draggableId={card.id} index={index}>
+    <Draggable draggableId={card.id} index={index} isDragDisabled={selectionMode}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
@@ -285,6 +288,7 @@ export function KanbanCard({
           className={cn(
             "border-border/80 group relative cursor-pointer select-none overflow-hidden rounded-md border bg-surface",
             "p-1.5 shadow-xs transition-all duration-150",
+            selectionMode && "pl-7",
             "hover:border-border-strong hover:shadow-sm",
             snapshot.isDragging && "ring-accent/40 z-50 rotate-1 shadow-md ring-2",
             isSelected && "ring-2 ring-accent",
@@ -310,12 +314,36 @@ export function KanbanCard({
             )}
           />
 
+          {selectionMode && (
+            <button
+              type="button"
+              aria-label={isSelected ? `Remover ${card.title} da seleção` : `Selecionar ${card.title}`}
+              aria-pressed={Boolean(isSelected)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect?.(card.id, true);
+              }}
+              className={cn(
+                "absolute left-2 top-2 flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                isSelected
+                  ? "border-accent bg-accent text-accent-foreground"
+                  : "border-border bg-surface hover:border-accent",
+              )}
+            >
+              {isSelected && <Check size={12} weight="bold" />}
+            </button>
+          )}
+
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-1">
               <button
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
+                  if (selectionMode) {
+                    onSelect?.(card.id, true);
+                    return;
+                  }
                   onOpen?.(card.id);
                 }}
                 className="leading-3.5 min-w-0 flex-1 truncate text-left text-[11px] font-semibold text-foreground hover:underline"

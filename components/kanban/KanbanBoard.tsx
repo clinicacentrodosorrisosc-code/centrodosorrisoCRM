@@ -52,6 +52,7 @@ interface KanbanBoardProps {
   selectedIds?: string[];
   pulses?: Map<string, number>;
   onSelectionChange?: (ids: string[]) => void;
+  selectionMode?: boolean;
 }
 
 interface PendingBudgetItem {
@@ -113,6 +114,7 @@ export function KanbanBoard({
   selectedIds,
   pulses: pulsesProp,
   onSelectionChange,
+  selectionMode = false,
 }: KanbanBoardProps) {
   const useExternal = Boolean(stagesProp && leadsProp);
   const queryResult = useBoard(useExternal ? null : pipelineId);
@@ -569,6 +571,7 @@ export function KanbanBoard({
             cardLayout={cardLayout}
             selectedLeadIds={selectedLeadIds}
             onSelect={handleSelect}
+            selectionMode={selectionMode}
             onOpen={(leadId) => {
               if (Date.now() < suppressDossierUntil.current) return;
               setDossieId(leadId);

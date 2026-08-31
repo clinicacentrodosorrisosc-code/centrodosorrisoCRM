@@ -19,7 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useUser } from "@/hooks/auth/AuthProvider";
+import { useActiveOrg, useUser } from "@/hooks/auth/AuthProvider";
+import { useAssignableMembers } from "@/hooks/inbox/useAssignableMembers";
+import { ROLE_RANK } from "@/lib/auth/types";
 import { useBulkAction } from "@/hooks/kanban/useBulkAction";
 import type { Stage } from "@/lib/kanban/types";
 
@@ -37,6 +39,12 @@ export function BulkActionBar({
   onClear,
 }: BulkActionBarProps) {
   const user = useUser();
+  const activeOrg = useActiveOrg();
+  const canAssign = Boolean(
+    user.is_platform_admin ||
+      (activeOrg && ROLE_RANK[activeOrg.role] >= ROLE_RANK.manager),
+  );
+  const { data: members } = useAssignableMembers(canAssign);
   const bulk = useBulkAction(pipelineId);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [tagInput, setTagInput] = useState("");
@@ -135,19 +143,34 @@ export function BulkActionBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline" disabled={bulk.isPending}>
-              Atribuir a…
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => runAssign(user.id)}>Eu</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => runAssign(null)}>
-              Remover responsável
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {canAssign && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={bulk.isPending}>
+                Responsável…
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Atribuir responsável</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => runAssign(user.id)}>Eu</DropdownMenuItem>
+              {(members ?? [])
+                .filter((member) => member.user_id !== user.id)
+                .map((member) => (
+                  <DropdownMenuItem
+                    key={member.user_id}
+                    onClick={() => runAssign(member.user_id)}
+                  >
+                    {member.full_name ?? "Sem nome"}
+                  </DropdownMenuItem>
+                ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => runAssign(null)}>
+                Remover responsável
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

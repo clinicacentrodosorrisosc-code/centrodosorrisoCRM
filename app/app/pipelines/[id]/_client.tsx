@@ -25,7 +25,7 @@ import { FilterBar } from "@/components/kanban/FilterBar";
 import { BulkActionBar } from "@/components/kanban/BulkActionBar";
 import { NewLeadDialog } from "@/components/kanban/NewLeadDialog";
 import { Button } from "@/components/ui/button";
-import { Bell, Plus, Kanban, Funnel, Gear, DotsThree, Copy } from "@/lib/ui/icons";
+import { Bell, Plus, Kanban, Funnel, Gear, DotsThree, Copy, ListChecks } from "@/lib/ui/icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DuplicateLeadsDialog } from "@/components/kanban/DuplicateLeadsDialog";
 import { ReminderConfigDialog } from "@/components/kanban/ReminderConfigDialog";
@@ -60,8 +60,27 @@ export function PipelinePageClient({
   const [cardLayoutOpen, setCardLayoutOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "funnel">("kanban");
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
 
-  const filteredLeads = data ? applyFilters(data.leads, filters) : [];
+  const filteredLeads = useMemo(() => (data ? applyFilters(data.leads, filters) : []), [data, filters]);
+  const visibleLeadIds = useMemo(() => filteredLeads.map((lead) => lead.id), [filteredLeads]);
+  const allVisibleSelected =
+    visibleLeadIds.length > 0 && visibleLeadIds.every((leadId) => selectedIds.includes(leadId));
+
+  const startBulkMode = () => {
+    setViewMode("kanban");
+    setSelectedIds([]);
+    setBulkMode(true);
+  };
+
+  const stopBulkMode = () => {
+    setSelectedIds([]);
+    setBulkMode(false);
+  };
+
+  const toggleSelectAllVisible = () => {
+    setSelectedIds(allVisibleSelected ? [] : visibleLeadIds);
+  };
 
   return (
     <div
@@ -91,7 +110,7 @@ export function PipelinePageClient({
             </button>
             <button
               type="button"
-              onClick={() => setViewMode("funnel")}
+              onClick={() => { setViewMode("funnel"); stopBulkMode(); }}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                 viewMode === "funnel"
                   ? "bg-background text-foreground shadow-xs"
@@ -111,6 +130,9 @@ export function PipelinePageClient({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={startBulkMode}>
+                <ListChecks size={16} /> Alterações em massa
+              </DropdownMenuItem>
               {podeConfigurarCard && <DropdownMenuItem onSelect={() => setCardLayoutOpen(true)}><Gear size={16} /> Layout do card</DropdownMenuItem>}
               <DropdownMenuItem onSelect={() => setReminderOpen(true)}><Bell size={16} /> Lembrete de Consulta</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setDuplicatesOpen(true)}><Copy size={16} /> Encontrar duplicatas</DropdownMenuItem>
@@ -138,6 +160,35 @@ export function PipelinePageClient({
 
       <FilterBar filters={filters} onChange={setFilters} leads={data?.leads ?? []} />
 
+      {bulkMode && (
+        <section
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/30 bg-accent/5 px-4 py-3"
+          aria-label="Seleção para alterações em massa"
+        >
+          <div>
+            <p className="text-sm font-semibold">Alterações em massa</p>
+            <p className="text-xs text-muted-foreground">
+              Selecione os cards que deseja alterar. As ações disponíveis aparecem ao selecionar pelo menos um card.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={toggleSelectAllVisible}
+              disabled={visibleLeadIds.length === 0}
+            >
+              {allVisibleSelected
+                ? "Limpar seleção"
+                : `Selecionar todos os ${visibleLeadIds.length} cards`}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={stopBulkMode}>
+              Encerrar
+            </Button>
+          </div>
+        </section>
+      )}
+
       {error ? (
         <div className="border-destructive/30 bg-destructive/10 rounded-md border p-4 text-sm">
           Não consegui carregar este funil: {formatError(error)}
@@ -155,6 +206,7 @@ export function PipelinePageClient({
           pipeline={data.pipeline}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
+          selectionMode={bulkMode}
         />
       ) : (
         <HorizontalFunnelView
