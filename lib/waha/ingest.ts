@@ -24,6 +24,7 @@ type Admin = ReturnType<typeof createAdminClient>;
 interface Session {
   id: string;
   organization_id: string;
+  status?: string | null;
 }
 
 export interface WahaPayload {
@@ -903,8 +904,32 @@ async function handleMessageRevoked(
     .eq("external_id", alvo);
 }
 
+// Confirma o estado da sessao por uma mensagem observada no WAHA.
+async function confirmarSessaoAtivaPorMensagem(admin: Admin, session: Session, payload: WahaPayload): Promise<void> {
+  // A mensagem e o status formam uma unica evidencia do canal.
+  const temMensagem = Boolean(payload.id && (payload.body || mediaUrlOf(payload) || payload.hasMedia));
+  // Uma mensagem valida prova que a sessao esta ativa neste instante.
+  // Corrige somente status explicitamente desatualizado e preserva os fakes
+  // legados sem status, que nao precisam de escrita extra.
+  if (!temMensagem || session.status === undefined || session.status === "WORKING") return;
+
+  const { error } = await admin
+    .from("channel_sessions")
+    .update({ status: "WORKING", last_status_change_at: new Date().toISOString() })
+    .eq("id", session.id)
+    .eq("organization_id", session.organization_id);
+  if (error) {
+    logger.warn("waha.ingest: nao consegui marcar sessao como ativa apos mensagem", {
+      organization_id: session.organization_id,
+      session_id: session.id,
+      erro: error.message,
+    });
+  }
+}
+
 /**
  * Roteador único de eventos WAHA. Os dois route handlers convergem aqui após
+ * A sessao ja foi resolvida e autenticada antes deste ponto.
  * resolver a sessão e validar HMAC.
  */
 export async function dispatchWahaEvent(
@@ -917,6 +942,7 @@ export async function dispatchWahaEvent(
   const payload = envelope.payload ?? {};
 
   if (eventType === "message" || eventType === "message.any") {
+    await confirmarSessaoAtivaPorMensagem(admin, session, payload);
     // O NOWEB pode colocar `fromMe` no payload principal ou na chave Baileys.
     if (payload.fromMe ?? payload._data?.key?.fromMe) {
       await handleOutboundFromUserPhone(admin, session, payload, requestId);

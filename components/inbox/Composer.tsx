@@ -18,7 +18,7 @@ import { EmojiButton } from "@/components/inbox/composer/EmojiButton";
 import { resolveSlash, TemplateMenu } from "@/components/inbox/composer/TemplateMenu";
 import { useCreateNote } from "@/hooks/inbox/useCreateNote";
 import { useMessageTemplates, type MessageTemplate } from "@/hooks/inbox/useMessageTemplates";
-import { useSendMessage } from "@/hooks/inbox/useSendMessage";
+import { envioFoiAceitoPeloCanal, useSendMessage } from "@/hooks/inbox/useSendMessage";
 import { useUploadMedia } from "@/hooks/inbox/useUploadMedia";
 import { imagemDoClipboard } from "@/lib/inbox/clipboard-image";
 import { interpolateTemplate } from "@/lib/inbox/template-vars";
@@ -99,7 +99,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
     send.mutate(
       { conversation_id: conversationId, body, type: "text" },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          if (!envioFoiAceitoPeloCanal(result)) return;
           setText("");
           requestAnimationFrame(() => autoresize());
         },
@@ -304,7 +305,11 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
                 media_mime: uploaded.media_mime,
                 media_size_bytes: uploaded.media_size_bytes,
               },
-              { onSuccess: () => setPendingFile(null) },
+              {
+                onSuccess: (result) => {
+                  if (envioFoiAceitoPeloCanal(result)) setPendingFile(null);
+                },
+              },
             );
           } catch {
             // toast já disparado pelo onError de useUploadMedia; dialog fica aberto p/ retry

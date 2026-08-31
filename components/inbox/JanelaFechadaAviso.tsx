@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api/client";
-import { useSendMessage } from "@/hooks/inbox/useSendMessage";
+import { envioFoiAceitoPeloCanal, useSendMessage } from "@/hooks/inbox/useSendMessage";
 import { fonteDeTemplates, rotaDeTemplates } from "@/lib/channels/templates-fonte";
 import { lerConteudo } from "@/lib/channels/template-conteudo";
 import { cn } from "@/lib/utils";
@@ -111,7 +111,8 @@ export function JanelaFechadaAviso({
         body: textoDoModelo(atual),
       },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          if (!envioFoiAceitoPeloCanal(result)) return;
           setEscolhido("");
           toast.success("Modelo enviado — a janela reabre quando o cliente responder.");
         },

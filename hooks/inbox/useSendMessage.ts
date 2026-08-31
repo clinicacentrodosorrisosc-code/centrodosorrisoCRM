@@ -1,5 +1,6 @@
 "use client";
 import { useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
 import type { Message } from "@/lib/types/messaging";
@@ -22,6 +23,15 @@ interface SendArgs {
   template_values?: Record<string, string>;
 }
 
+export interface SendMessageResult {
+  data: Message;
+}
+
+/** O canal aceitou a mensagem somente quando a API retorna `sent`. */
+export function envioFoiAceitoPeloCanal(result: SendMessageResult): boolean {
+  return result.data.status === "sent";
+}
+
 interface MessagesPage {
   data: Message[];
   meta?: { cursor?: string | null; has_more?: boolean };
@@ -32,7 +42,7 @@ export function useSendMessage() {
 
   return useMutation({
     mutationFn: async (input: SendArgs) =>
-      apiClient.post<{ data: Message }>("/api/v1/messages", input),
+      apiClient.post<SendMessageResult>("/api/v1/messages", input),
     onMutate: async (args) => {
       if (args.media_storage_path || args.media_url) return {};
 
@@ -88,6 +98,13 @@ export function useSendMessage() {
 
       return { tempId };
     },
+    onSuccess: (result) => {
+      if (envioFoiAceitoPeloCanal(result)) return;
+      toast.error(
+        result.data.error_message ?? "A mensagem nao foi enviada ao WhatsApp. Tente novamente apos corrigir a conexao.",
+      );
+    },
+
     onError: (err, args) => {
       qc.invalidateQueries({ queryKey: ["messages", args.conversation_id] });
       showApiError(err);

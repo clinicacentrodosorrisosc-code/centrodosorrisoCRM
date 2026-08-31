@@ -187,9 +187,9 @@ describe('sendMessageHandler — os 6 desfechos do envio', () => {
 
     const msg = await sendMessageHandler(makeSupabase(conversationRow()), ctx, textInput());
 
-    expect(msg.status).toBe('queued');
-    expect((msg.metadata as Record<string, unknown>).queued_reason).toBe('waha_not_configured');
-    expect(msg.error_code).toBeNull();
+    expect(msg.status).toBe('failed');
+    expect(msg.error_code).toBe('waha_not_configured');
+    expect(msg.error_message).toMatch(/nao esta configurada/);
     expect(msg.external_id).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -222,9 +222,9 @@ describe('sendMessageHandler — os 6 desfechos do envio', () => {
       textInput(),
     );
 
-    expect(msg.status).toBe('queued');
-    expect((msg.metadata as Record<string, unknown>).queued_reason).toBe('channel_session_not_working');
-    expect(msg.error_code).toBeNull();
+    expect(msg.status).toBe('failed');
+    expect(msg.error_code).toBe('channel_session_not_working');
+    expect(msg.error_message).toMatch(/nao esta ativa/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -382,9 +382,9 @@ describe('sendMessageHandler — os 6 desfechos do envio', () => {
       textInput(),
     );
 
-    expect(msg.status).toBe('queued');
-    expect((msg.metadata as Record<string, unknown>).queued_reason).toBe('waha_not_configured');
-    expect(msg.error_code).toBeNull();
+    expect(msg.status).toBe('failed');
+    expect(msg.error_code).toBe('waha_not_configured');
+    expect(msg.error_message).toMatch(/nao esta configurada/);
   });
 
   it('8. type=template envia pelo caminho do template e grava nome e idioma', async () => {

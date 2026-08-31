@@ -392,15 +392,35 @@ export async function sendMessageHandler(
       .maybeSingle();
     if (updated) message = updated as unknown as Message;
   } else if (!adapter.isConfigured()) {
-    const { data: updated } = await supabase
-      .from("messages")
-      .update({
-        metadata: { ...(message.metadata ?? {}), queued_reason: adapter.codes.notConfigured },
-      })
-      .eq("id", message.id)
-      .select(MSG_COLS)
-      .maybeSingle();
-    if (updated) message = updated as unknown as Message;
+    // A manual Inbox reply has no agent-engine job to retry it.
+    // Keeping it queued would falsely imply that the patient received it.
+    // Automated and AI sends retain the queue because they do have a job that
+    // can be retried after the connection becomes available.
+    //
+    if (ctx.actor.type === "user") {
+      const { data: updated } = await supabase
+        .from("messages")
+        .update({
+          status: "failed",
+          error_code: adapter.codes.notConfigured,
+          error_message:
+            "A conexao WhatsApp nao esta configurada neste servidor. Verifique Conexoes e tente novamente.",
+        })
+        .eq("id", message.id)
+        .select(MSG_COLS)
+        .maybeSingle();
+      if (updated) message = updated as unknown as Message;
+    } else {
+      const { data: updated } = await supabase
+        .from("messages")
+        .update({
+          metadata: { ...(message.metadata ?? {}), queued_reason: adapter.codes.notConfigured },
+        })
+        .eq("id", message.id)
+        .select(MSG_COLS)
+        .maybeSingle();
+      if (updated) message = updated as unknown as Message;
+    }
   } else if (!chatId) {
     const { data: updated } = await supabase
       .from("messages")
@@ -414,18 +434,33 @@ export async function sendMessageHandler(
       .maybeSingle();
     if (updated) message = updated as unknown as Message;
   } else if (!c.channel_sessions || c.channel_sessions.status !== "WORKING") {
-    const { data: updated } = await supabase
-      .from("messages")
-      .update({
-        metadata: {
-          ...(message.metadata ?? {}),
-          queued_reason: "channel_session_not_working",
-        },
-      })
-      .eq("id", message.id)
-      .select(MSG_COLS)
-      .maybeSingle();
-    if (updated) message = updated as unknown as Message;
+    if (ctx.actor.type === "user") {
+      const { data: updated } = await supabase
+        .from("messages")
+        .update({
+          status: "failed",
+          error_code: "channel_session_not_working",
+          error_message:
+            "A conexao WhatsApp nao esta ativa. Reconecte-a em Conexoes e tente novamente.",
+        })
+        .eq("id", message.id)
+        .select(MSG_COLS)
+        .maybeSingle();
+      if (updated) message = updated as unknown as Message;
+    } else {
+      const { data: updated } = await supabase
+        .from("messages")
+        .update({
+          metadata: {
+            ...(message.metadata ?? {}),
+            queued_reason: "channel_session_not_working",
+          },
+        })
+        .eq("id", message.id)
+        .select(MSG_COLS)
+        .maybeSingle();
+      if (updated) message = updated as unknown as Message;
+    }
   } else {
     try {
       // O que separa mídia de texto é a presença de `media` no envelope — o
@@ -554,7 +589,7 @@ export async function sendMessageHandler(
       // responder "não configurado" travaria em `queued` um canal que funciona.
       // Quem sabe é `send()`, que pode consultar o banco — então ele lança, e a
       // tradução do desfecho acontece aqui.
-      if (msg.startsWith(adapter.codes.notConfigured)) {
+      if (msg.startsWith(adapter.codes.notConfigured) && ctx.actor.type !== "user") {
         const { data: emFila } = await supabase
           .from("messages")
           .update({
@@ -596,12 +631,16 @@ export async function sendMessageHandler(
       type: input.type,
     }),
   };
-  if (ctx.actor.type === "user") {
-    const silenceUntil = extendBotSilence(c.bot_silenced_until, now);
-    if (silenceUntil) conversationUpdate.bot_silenced_until = silenceUntil;
+  // A failed delivery is not a patient reply. Do not advance the preview, last
+  // message timestamp, or AI silence window, otherwise the conversation would
+  // look handled although nothing left the CRM.
+  if (message.status !== "failed") {
+    if (ctx.actor.type === "user") {
+      const silenceUntil = extendBotSilence(c.bot_silenced_until, now);
+      if (silenceUntil) conversationUpdate.bot_silenced_until = silenceUntil;
+    }
+    await supabase.from("conversations").update(conversationUpdate).eq("id", c.id);
   }
-
-  await supabase.from("conversations").update(conversationUpdate).eq("id", c.id);
 
   const a = actorAuditPayload(ctx.actor);
   await audit({
