@@ -187,15 +187,16 @@ export function NewLeadDialog({
         source: form.getValues("source") || "manual",
       });
 
-      if (res?.data) {
-        setSelectedContact(res.data);
+      const contact = res?.data?.contact;
+      if (contact) {
+        setSelectedContact(contact);
         setIsCreatingContact(false);
         setContactError(null);
-        toast.success(`Contato "${res.data.name}" cadastrado!`);
+        toast.success(`Contato "${contact.name}" cadastrado!`);
 
         // Auto-preenche título se estiver vazio
         if (!form.getValues("title").trim()) {
-          form.setValue("title", res.data.name || "Novo Lead");
+          form.setValue("title", contact.name || "Novo Lead");
         }
       }
     } catch {
