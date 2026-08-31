@@ -41,6 +41,7 @@ import {
   X,
 } from "@/lib/ui/icons";
 import { cn } from "@/lib/utils";
+import { normalizePhoneBR } from "@/lib/webhooks/inbound";
 
 interface FormShape {
   title: string;
@@ -175,15 +176,16 @@ export function NewLeadDialog({
       setContactError("O nome do contato é obrigatório.");
       return;
     }
-    if (!newContactPhone.trim()) {
-      setContactError("O telefone / WhatsApp do contato é obrigatório.");
+    const normalizedPhone = normalizePhoneBR(newContactPhone);
+    if (!normalizedPhone) {
+      setContactError("Informe um telefone válido (ex: 47999998888 ou +5547999998888).");
       return;
     }
 
     try {
       const res = await createContact.mutateAsync({
         name: newContactName.trim(),
-        phone_number: newContactPhone.trim(),
+        phone_number: normalizedPhone,
         source: form.getValues("source") || "manual",
       });
 
