@@ -16,7 +16,7 @@ export function AppShell({ sidebarCollapsed, children }: AppShellProps) {
       <Sidebar collapsed={sidebarCollapsed} />
       <div className={cn("flex min-h-screen min-w-0 flex-1 flex-col transition-[margin] duration-200", sidebarCollapsed ? "ml-16" : "ml-60")}>
         <TopBar />
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-6">{children}</main>
       </div>
       <AttendanceAlertNotifier />
     </div>
