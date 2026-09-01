@@ -354,36 +354,9 @@ export function KanbanBoard({
         const custom = (lead.custom_fields ?? {}) as Record<string, unknown>;
         const existingOrcamento = custom.orcamento as OrcamentoLead | undefined;
 
-        if (existingOrcamento?.itens && existingOrcamento.itens.length > 0) {
-          setBudgetItens(
-            existingOrcamento.itens.map((it) => ({
-              id: it.id,
-              descricao: it.descricao,
-              quantidade: it.quantidade,
-              valorUnitarioReais: (it.valor_unitario_cents / 100).toFixed(2).replace(".", ","),
-            })),
-          );
-          setBudgetDescontoReais(
-            existingOrcamento.desconto_cents
-              ? (existingOrcamento.desconto_cents / 100).toFixed(2).replace(".", ",")
-              : "",
-          );
-        } else {
-          const procInicial = String(custom.procedimento ?? custom.procedure ?? "").trim();
-          const valInicial =
-            lead.value_cents && lead.value_cents > 0
-              ? (lead.value_cents / 100).toFixed(2).replace(".", ",")
-              : "";
-          setBudgetItens([
-            {
-              id: "item_1",
-              descricao: procInicial || "",
-              quantidade: 1,
-              valorUnitarioReais: valInicial || "",
-            },
-          ]);
-          setBudgetDescontoReais("");
-        }
+        const totalExistente = existingOrcamento?.total_cents ?? lead.value_cents ?? 0;
+        setBudgetItens([{ id: "orcamento_total", descricao: "Orçamento", quantidade: 1, valorUnitarioReais: totalExistente > 0 ? (totalExistente / 100).toFixed(2).replace(".", ",") : "" }]);
+        setBudgetDescontoReais("");
 
         setPendingBudgetMove({
           lead,
@@ -711,129 +684,10 @@ export function KanbanBoard({
             </DialogDescription>
           </DialogHeader>
 
-          {/* Lista de Itens do Orçamento */}
-          <div className="scrollbar-thin flex-1 space-y-3 overflow-y-auto py-3 pr-1">
-            <div className="space-y-2">
-              {budgetItens.map((item, index) => {
-                const unitCents = parseReaisToCents(item.valorUnitarioReais) || 0;
-                const itemTotalCents = unitCents * (item.quantidade || 1);
-
-                return (
-                  <div
-                    key={item.id}
-                    className="border-border/70 bg-card/80 flex flex-col gap-2.5 rounded-xl border p-3 shadow-xs"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1 text-[11px] font-bold uppercase text-muted-foreground">
-                        <Sparkle size={12} className="text-emerald-500" /> Procedimento #{index + 1}
-                      </span>
-                      {budgetItens.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveBudgetItem(item.id)}
-                          className="h-7 w-7 rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
-                          title="Remover procedimento"
-                        >
-                          <Trash size={14} />
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 items-end gap-2.5 sm:grid-cols-12">
-                      {/* Seleção ou Digitação do Procedimento */}
-                      <div className="space-y-1 sm:col-span-6">
-                        <Label className="text-xs font-semibold text-foreground">
-                          Nome do Procedimento *
-                        </Label>
-                        <div className="flex flex-col gap-1">
-                          <Input
-                            placeholder="Ex: Implante Dentário, Clareamento..."
-                            value={item.descricao}
-                            onChange={(e) =>
-                              handleUpdateBudgetItem(item.id, "descricao", e.target.value)
-                            }
-                            list={`sugestoes-${item.id}`}
-                            className="h-8 bg-background text-xs"
-                          />
-                          <datalist id={`sugestoes-${item.id}`}>
-                            {listaProcedimentos.map((p) => (
-                              <option key={p} value={p} />
-                            ))}
-                          </datalist>
-                        </div>
-                      </div>
-
-                      {/* Quantidade */}
-                      <div className="space-y-1 sm:col-span-2">
-                        <Label className="text-xs font-semibold text-foreground">Qtd</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantidade}
-                          onChange={(e) =>
-                            handleUpdateBudgetItem(item.id, "quantidade", e.target.value)
-                          }
-                          className="h-8 bg-background text-center text-xs"
-                        />
-                      </div>
-
-                      {/* Valor Unitário R$ */}
-                      <div className="space-y-1 sm:col-span-2">
-                        <Label className="text-xs font-semibold text-foreground">
-                          Valor Unit. (R$) *
-                        </Label>
-                        <Input
-                          placeholder="0,00"
-                          value={item.valorUnitarioReais}
-                          onChange={(e) =>
-                            handleUpdateBudgetItem(item.id, "valorUnitarioReais", e.target.value)
-                          }
-                          className="h-8 bg-background text-right text-xs"
-                        />
-                      </div>
-
-                      {/* Total do Item */}
-                      <div className="space-y-1 text-right sm:col-span-2">
-                        <Label className="text-[11px] font-medium text-muted-foreground">
-                          Total Item
-                        </Label>
-                        <div className="bg-muted/60 border-border/50 flex h-8 items-center justify-end rounded-md border px-2 text-xs font-bold tabular-nums text-foreground">
-                          {formatBRL(itemTotalCents)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Botão Adicionar Procedimento */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAddBudgetItem}
-              className="h-8 w-full gap-1.5 border-dashed text-xs font-semibold hover:border-emerald-500 hover:bg-emerald-50/50 hover:text-emerald-600 dark:hover:bg-emerald-950/20"
-            >
-              <Plus size={14} weight="bold" /> Adicionar Outro Procedimento
-            </Button>
-
-            {/* Desconto Opcional */}
-            <div className="border-border/50 flex items-center justify-between gap-4 border-t pt-2">
-              <Label className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                Desconto Promocional (Opcional):
-              </Label>
-              <div className="w-36">
-                <Input
-                  placeholder="R$ 0,00"
-                  value={budgetDescontoReais}
-                  onChange={(e) => setBudgetDescontoReais(e.target.value)}
-                  className="h-8 bg-background text-right text-xs"
-                />
-              </div>
-            </div>
+          <div className="flex-1 space-y-2 py-4">
+            <Label htmlFor="budget-total">Valor total do orçamento (R$)</Label>
+            <Input id="budget-total" inputMode="decimal" value={budgetItens[0]?.valorUnitarioReais ?? ""} onChange={(event) => handleUpdateBudgetItem("orcamento_total", "valorUnitarioReais", event.target.value)} placeholder="0,00" className="max-w-xs" />
+            <p className="text-xs text-muted-foreground">Informe somente o valor total do orçamento.</p>
           </div>
 
           {/* Rodapé com Soma Total e Ações */}

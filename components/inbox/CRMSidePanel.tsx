@@ -27,6 +27,8 @@ interface Props {
 
 interface LeadRow {
   id: string;
+  pipeline_id: string;
+  stage_id: string;
   title: string;
   status: string;
   value_cents: number | null;
@@ -35,6 +37,7 @@ interface LeadRow {
   source?: string | null;
   source_metadata?: Record<string, unknown> | null;
   custom_fields?: Record<string, unknown> | null;
+  crm_stages?: { name: string } | null;
 }
 
 interface OrderRow {
@@ -523,15 +526,18 @@ export function CRMSidePanel({ conversation }: Props) {
         ) : leads && leads.length > 0 ? (
           <ul className="mt-2 space-y-1.5">
             {leads.map((l) => (
-              <li
-                key={l.id}
-                className="flex items-center justify-between rounded-md border border-border p-2 text-xs"
-              >
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{l.title}</div>
-                  <div className="text-muted-foreground">
-                    {l.status} · {formatMoney(l.value_cents, l.currency)}
+              <li key={l.id} className="rounded-md border border-border bg-card p-2.5 text-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold">{l.title}</div>
+                    <div className="mt-0.5 text-muted-foreground">{l.crm_stages?.name ?? l.status} · {formatMoney(l.value_cents, l.currency)}</div>
+                    {typeof l.custom_fields?.procedimento === "string" && l.custom_fields.procedimento && (
+                      <div className="mt-1 truncate text-muted-foreground">{l.custom_fields.procedimento}</div>
+                    )}
                   </div>
+                  <Button asChild size="sm" variant="ghost" className="h-7 shrink-0 px-2 text-xs">
+                    <Link href={`/app/pipelines/${l.pipeline_id}`}>Abrir</Link>
+                  </Button>
                 </div>
               </li>
             ))}

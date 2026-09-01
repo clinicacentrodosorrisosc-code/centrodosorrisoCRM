@@ -82,21 +82,8 @@ export function OrcamentoDialog({ open, onOpenChange, lead, pipelineId }: Props)
 
   // Itens
   const [itens, setItens] = useState<OrcamentoItem[]>(() => {
-    if (rawOrcamento?.itens && rawOrcamento.itens.length > 0) {
-      return rawOrcamento.itens;
-    }
-    // Se não há orçamento, cria 1 item inicial com o valor do lead se houver
-    const procInicial = String(customFields.procedimento ?? customFields.procedure ?? "Procedimento Odontológico");
-    const val = lead.value_cents ?? 0;
-    return [
-      {
-        id: "item_1",
-        descricao: procInicial,
-        quantidade: 1,
-        valor_unitario_cents: val,
-        valor_total_cents: val,
-      },
-    ];
+    const total = rawOrcamento?.total_cents ?? lead.value_cents ?? 0;
+    return [{ id: "orcamento_total", descricao: "Orçamento", quantidade: 1, valor_unitario_cents: total, valor_total_cents: total }];
   });
 
   // Pagamentos
@@ -404,7 +391,7 @@ export function OrcamentoDialog({ open, onOpenChange, lead, pipelineId }: Props)
                 : "border-transparent text-text-muted hover:text-text"
             }`}
           >
-            📋 Procedimentos & Itens ({itens.length})
+            💰 Valor do Orçamento
           </button>
           <button
             type="button"
@@ -427,110 +414,13 @@ export function OrcamentoDialog({ open, onOpenChange, lead, pipelineId }: Props)
         {/* Conteúdo das Abas */}
         <div className="flex-1 overflow-y-auto p-4">
           {activeTab === "itens" && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-text-muted px-1">
-                  <span className="col-span-6">Procedimento / Tratamento</span>
-                  <span className="col-span-2 text-center">Qtd</span>
-                  <span className="col-span-2 text-right">Valor Unit. (R$)</span>
-                  <span className="col-span-2 text-right">Subtotal</span>
-                </div>
-
-                {itens.map((item) => (
-                  <div
-                    key={item.id}
-                    className="grid grid-cols-12 gap-2 items-center rounded-lg border border-border bg-card p-2 text-xs"
-                  >
-                    {/* Descrição */}
-                    <div className="col-span-6">
-                      <Input
-                        list="procs-orcamento"
-                        value={item.descricao}
-                        onChange={(e) =>
-                          handleUpdateItem(item.id, "descricao", e.target.value)
-                        }
-                        placeholder="Nome do procedimento..."
-                        className="h-8 text-xs"
-                      />
-                      <datalist id="procs-orcamento">
-                        {listaProcedimentos.map((p) => (
-                          <option key={p} value={p} />
-                        ))}
-                      </datalist>
-                    </div>
-
-                    {/* Quantidade */}
-                    <div className="col-span-2">
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.quantidade}
-                        onChange={(e) =>
-                          handleUpdateItem(item.id, "quantidade", e.target.value)
-                        }
-                        className="h-8 text-xs text-center"
-                      />
-                    </div>
-
-                    {/* Valor Unitário */}
-                    <div className="col-span-2">
-                      <Input
-                        inputMode="decimal"
-                        defaultValue={centsToReais(item.valor_unitario_cents)}
-                        onBlur={(e) =>
-                          handleUpdateItem(item.id, "valorReais", e.target.value)
-                        }
-                        placeholder="0,00"
-                        className="h-8 text-xs text-right"
-                      />
-                    </div>
-
-                    {/* Subtotal & Remover */}
-                    <div className="col-span-2 flex items-center justify-end gap-2">
-                      <span className="font-semibold text-text tabular-nums">
-                        {formatBRL(item.valor_total_cents)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="text-text-muted hover:text-destructive transition-colors p-1"
-                        title="Remover item"
-                      >
-                        <Trash size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Ação Adicionar Item */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddItem}
-                  className="h-8 text-xs gap-1"
-                >
-                  <Plus size={14} />
-                  Adicionar Procedimento
-                </Button>
-
-                {/* Desconto */}
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="desconto" className="text-xs text-text-muted">
-                    Desconto (R$):
-                  </Label>
-                  <Input
-                    id="desconto"
-                    inputMode="decimal"
-                    placeholder="0,00"
-                    value={descontoReais}
-                    onChange={(e) => setDescontoReais(e.target.value)}
-                    className="h-8 w-24 text-xs text-right"
-                  />
-                </div>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="valor-orcamento">Valor total do orçamento (R$)</Label>
+              <Input id="valor-orcamento" inputMode="decimal" value={centsToReais(itens[0]?.valor_total_cents ?? 0)} onChange={(event) => {
+                const cents = parseReaisToCents(event.target.value) ?? 0;
+                setItens([{ id: "orcamento_total", descricao: "Orçamento", quantidade: 1, valor_unitario_cents: cents, valor_total_cents: cents }]);
+              }} placeholder="0,00" className="max-w-xs" />
+              <p className="text-xs text-muted-foreground">Informe apenas o valor total. As baixas são registradas na aba ao lado.</p>
             </div>
           )}
 

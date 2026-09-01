@@ -34,7 +34,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const LEAD_COLS = "id, title, status, value_cents, currency, updated_at, source, source_metadata, custom_fields";
+const LEAD_COLS = "id, pipeline_id, stage_id, title, status, value_cents, currency, updated_at, source, source_metadata, custom_fields, crm_stages:stage_id(name)";
 const ORDER_COLS = "id, external_id, status, total_cents, currency, created_at";
 /** Acompanha o que a timeline mostra — `reason` e `actor_kind` inclusive. */
 const ACTIVITY_COLS = "id, type, source_module, performed_at, payload, reason, actor_kind";

@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -10,9 +11,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLoseLead } from "@/hooks/kanban/useUpdateLead";
 import { CANONICAL_LOST_REASONS } from "@/lib/schemas/leads";
+import { useBoard } from "@/hooks/kanban/useBoard";
+import { updatePipelineConfig } from "@/app/actions/settings/updatePipelineConfig";
 
 const REASON_LABELS: Record<(typeof CANONICAL_LOST_REASONS)[number], string> = {
   requested_by_customer: "Cliente solicitou cancelamento",
@@ -42,7 +46,14 @@ export function LoseLeadDialog({
 }: LoseLeadDialogProps) {
   const [reasonCode, setReasonCode] = useState<string>("");
   const [otherText, setOtherText] = useState("");
+  const [newReason, setNewReason] = useState("");
+  const [savingReason, setSavingReason] = useState(false);
   const mutation = useLoseLead(pipelineId);
+  const board = useBoard(pipelineId);
+  const customReasons = useMemo(() => {
+    const raw = board.data?.pipeline.settings?.lost_reasons;
+    return Array.isArray(raw) ? raw.filter((item): item is string => typeof item === "string") : [];
+  }, [board.data?.pipeline.settings]);
 
   const finalReason = reasonCode === "other" ? otherText.trim() || "other" : reasonCode;
   const disabled = !reasonCode || finalReason.length === 0 || finalReason.length > MAX_LEN || mutation.isPending;
@@ -59,9 +70,27 @@ export function LoseLeadDialog({
     }
   };
 
+  const handleAddReason = async () => {
+    const reason = newReason.trim();
+    if (!reason || customReasons.some((item) => item.toLowerCase() === reason.toLowerCase())) return;
+    setSavingReason(true);
+    try {
+      const result = await updatePipelineConfig(pipelineId, { lost_reasons: [...customReasons, reason] });
+      if (!result.ok) throw new Error(result.error);
+      await board.refetch();
+      setReasonCode(reason);
+      setNewReason("");
+      toast.success("Motivo de perda salvo.");
+    } catch {
+      toast.error("Não foi possível salvar o novo motivo.");
+    } finally {
+      setSavingReason(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Marcar como perdido</DialogTitle>
           <DialogDescription>
@@ -87,6 +116,12 @@ export function LoseLeadDialog({
                 <span>{REASON_LABELS[code]}</span>
               </label>
             ))}
+            {customReasons.map((reason) => (
+              <label key={reason} className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent">
+                <input type="radio" name="lost-reason" value={reason} checked={reasonCode === reason} onChange={(event) => setReasonCode(event.target.value)} />
+                <span>{reason}</span>
+              </label>
+            ))}
           </div>
           {reasonCode === "other" && (
             <div className="grid gap-1.5">
@@ -104,6 +139,13 @@ export function LoseLeadDialog({
               </div>
             </div>
           )}
+          <div className="grid gap-1.5 rounded-md border border-dashed p-3">
+            <Label htmlFor="new-lost-reason">Adicionar novo motivo</Label>
+            <div className="flex gap-2">
+              <Input id="new-lost-reason" value={newReason} onChange={(event) => setNewReason(event.target.value)} placeholder="Ex: Escolheu outra clínica" maxLength={80} />
+              <Button type="button" variant="outline" onClick={handleAddReason} disabled={!newReason.trim() || savingReason}>{savingReason ? "Salvando..." : "Adicionar"}</Button>
+            </div>
+          </div>
         </div>
 
         <DialogFooter>

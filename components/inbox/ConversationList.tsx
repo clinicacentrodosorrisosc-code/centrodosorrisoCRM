@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChannelSessions } from "@/hooks/channels/useChannelSessions";
@@ -41,6 +41,54 @@ export function ConversationList({
   const maisDeUmCanal = canais.length > 1;
 
   const q = useConversationsRealtime(filters, orgId);
+  const knownInbound = useRef(new Map<string, string | null>());
+  const soundReady = useRef(false);
+
+  useEffect(() => {
+    const all = q.data?.pages.flatMap((p) => p.data) ?? [];
+    if (all.length === 0) return;
+
+    const firstSnapshot = knownInbound.current.size === 0;
+    let hasNewInbound = false;
+    for (const conversation of all) {
+      const previous = knownInbound.current.get(conversation.id);
+      const current = conversation.last_inbound_at ?? null;
+      if (!firstSnapshot && previous !== undefined && previous !== current) {
+        hasNewInbound = true;
+      }
+      knownInbound.current.set(conversation.id, current);
+    }
+
+    if (!hasNewInbound || !soundReady.current || typeof window === "undefined") return;
+    const AudioContextClass = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const audio = new AudioContextClass();
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, audio.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.22);
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start();
+    oscillator.stop(audio.currentTime + 0.23);
+    void oscillator.addEventListener("ended", () => void audio.close());
+  }, [q.data]);
+
+  useEffect(() => {
+    const enableSound = () => {
+      soundReady.current = true;
+      window.removeEventListener("pointerdown", enableSound);
+      window.removeEventListener("keydown", enableSound);
+    };
+    window.addEventListener("pointerdown", enableSound, { once: true });
+    window.addEventListener("keydown", enableSound, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", enableSound);
+      window.removeEventListener("keydown", enableSound);
+    };
+  }, []);
 
   // Fila (G5-03): a lista já vem ordenada por tempo de espera (server), então a
   // posição é o índice na lista visível. Só mostramos posição/espera nessa visão.
