@@ -90,15 +90,15 @@ export function LoseLeadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Marcar como perdido</DialogTitle>
           <DialogDescription>
             Informe o motivo. Essa informação ajuda a melhorar o funil.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3">
+        <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto pr-1">
           <Label>Motivo</Label>
           <div className="grid grid-cols-1 gap-1.5">
             {CANONICAL_LOST_REASONS.map((code) => (
@@ -148,7 +148,7 @@ export function LoseLeadDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t pt-3">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
