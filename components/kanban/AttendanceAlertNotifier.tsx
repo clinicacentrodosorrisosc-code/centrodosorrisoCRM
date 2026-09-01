@@ -31,7 +31,7 @@ export function AttendanceAlertNotifier() {
 
   // Estados para pausa/snooze personalizado
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
-  const [customSnoozeMinutes, setCustomSnoozeMinutes] = useState(10);
+  const [customSnoozeMinutes, setCustomSnoozeMinutes] = useState(5);
 
   if (!pendingLeads || pendingLeads.length === 0) return null;
 
@@ -147,7 +147,7 @@ export function AttendanceAlertNotifier() {
                 min={1}
                 max={1440}
                 value={customSnoozeMinutes}
-                onChange={(e) => setCustomSnoozeMinutes(Number(e.target.value) || 10)}
+                onChange={(e) => setCustomSnoozeMinutes(Number(e.target.value) || 5)}
                 className="h-6 w-16 text-[11px] px-1.5 py-0 text-center"
               />
               <span className="text-[10px] text-muted-foreground">min</span>

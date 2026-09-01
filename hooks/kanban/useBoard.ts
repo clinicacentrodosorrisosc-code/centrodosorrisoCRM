@@ -15,9 +15,10 @@ import type { BoardData } from "@/lib/kanban/types";
  * and PostgREST returns PGRST116. Routing through /api/v1/pipelines/[id]/board
  * uses the server-side cookie reader, identical to every other authed query.
  */
-async function fetchBoard(pipelineId: string): Promise<BoardData> {
+async function fetchBoard(pipelineId: string, signal?: AbortSignal): Promise<BoardData> {
   const res = await apiClient.get<{ data: BoardData }>(
     `/api/v1/pipelines/${pipelineId}/board`,
+    { signal },
   );
   // apiClient unwraps { data, meta } envelope already in some helpers;
   // ours returns the parsed JSON literally. Handle both shapes safely.
@@ -64,7 +65,7 @@ export function useBoard(pipelineId: string | null) {
 
   const query = useQuery({
     queryKey,
-    queryFn: () => fetchBoard(pipelineId as string),
+    queryFn: ({ signal }) => fetchBoard(pipelineId as string, signal),
     enabled: !!pipelineId,
   });
 

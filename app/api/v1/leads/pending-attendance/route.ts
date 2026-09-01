@@ -133,7 +133,7 @@ export async function GET(_req: NextRequest): Promise<Response> {
     const diffMinutes = diffMs / (60 * 1000);
 
     // Considera pendente a partir de 30 minutos antes da consulta até 72 horas após
-    if (diffMinutes >= -30 && diffMinutes <= 72 * 60) {
+    if (diffMinutes >= 0 && diffMinutes <= 72 * 60) {
       const contactObj = lead.contacts as { phone_number?: string | null; name?: string | null; display_name?: string | null } | null;
       pending.push({
         id: lead.id,

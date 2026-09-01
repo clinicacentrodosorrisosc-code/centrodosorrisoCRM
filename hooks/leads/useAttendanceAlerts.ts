@@ -84,7 +84,7 @@ export function useAttendanceAlerts() {
     },
   });
 
-  function snoozeLead(leadId: string, minutes: number = 10) {
+  function snoozeLead(leadId: string, minutes: number = 5) {
     const validMinutes = Math.max(1, minutes);
     const until = Date.now() + validMinutes * 60 * 1000;
     setSnoozedMap((prev) => ({ ...prev, [leadId]: until }));
