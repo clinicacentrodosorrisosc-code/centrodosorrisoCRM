@@ -25,6 +25,9 @@ import { Providers } from "./providers";
 import { PublicEnvScript } from "./public-env-script";
 import "./globals.css";
 
+// A marca é resolvida no banco por requisição; não tentar pré-renderizar no build.
+export const dynamic = "force-dynamic";
+
 const atkinson = Atkinson_Hyperlegible({
   subsets: ["latin", "latin-ext"],
   weight: ["400", "700"],
