@@ -33,6 +33,13 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  // As páginas protegidas já validam a sessão nos layouts server-side. Não
+  // repetir getUser() no proxy: essa chamada de rede podia estourar o limite
+  // da Vercel e bloquear a navegação inteira com 504.
+  if (!pathname.startsWith('/api/')) {
+    return response;
+  }
+
   try {
     const supabase = createServerClient(
       env.NEXT_PUBLIC_SUPABASE_URL,
