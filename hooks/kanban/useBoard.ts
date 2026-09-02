@@ -62,6 +62,7 @@ export function useBoard(pipelineId: string | null) {
    */
   const [pulses, setPulses] = useState<Map<string, number>>(new Map());
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const invalidateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const query = useQuery({
     queryKey,
@@ -74,7 +75,11 @@ export function useBoard(pipelineId: string | null) {
       // Conservative: invalidate the board on any change. Optimistic patches
       // arrive faster via useMoveCard's onMutate; this just reconciles
       // cross-user changes within ~250ms.
-      qc.invalidateQueries({ queryKey });
+      if (invalidateTimer.current) clearTimeout(invalidateTimer.current);
+      invalidateTimer.current = setTimeout(() => {
+        invalidateTimer.current = null;
+        qc.invalidateQueries({ queryKey });
+      }, 750);
 
       const leadId = idDoEvento(payload);
       // Janela, não marca gasta por evento: uma ação minha chega aqui em DUAS
