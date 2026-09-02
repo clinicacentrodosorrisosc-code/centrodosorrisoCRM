@@ -68,6 +68,7 @@ export function useBoard(pipelineId: string | null) {
     queryKey,
     queryFn: ({ signal }) => fetchBoard(pipelineId as string, signal),
     enabled: !!pipelineId,
+    staleTime: 2 * 60_000,
   });
 
   const onChange = useCallback(
