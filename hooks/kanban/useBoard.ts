@@ -18,7 +18,7 @@ import type { BoardData } from "@/lib/kanban/types";
 async function fetchBoard(pipelineId: string, signal?: AbortSignal): Promise<BoardData> {
   const res = await apiClient.get<{ data: BoardData }>(
     `/api/v1/pipelines/${pipelineId}/board`,
-    { signal },
+    { signal, timeoutMs: 30_000 },
   );
   // apiClient unwraps { data, meta } envelope already in some helpers;
   // ours returns the parsed JSON literally. Handle both shapes safely.
